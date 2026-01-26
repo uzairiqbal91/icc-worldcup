@@ -33,6 +33,7 @@ export const getMatchScorecard = async (matchId: string | number) => {
     }
 };
 
+
 export const getMatchInfo = async (matchId: string | number) => {
     try {
         const { data } = await client.get(`/mcenter/v1/${matchId}`);
@@ -42,6 +43,26 @@ export const getMatchInfo = async (matchId: string | number) => {
         return null;
     }
 }
+
+export const getUpcomingMatches = async () => {
+    try {
+        const { data } = await client.get('/matches/v1/upcoming');
+        return data;
+    } catch (error) {
+        console.error('Error fetching upcoming matches:', error);
+        return null;
+    }
+};
+
+export const getInternationalSeries = async () => {
+    try {
+        const { data } = await client.get('/series/v1/international');
+        return data;
+    } catch (error) {
+        console.error('Error fetching international series:', error);
+        return null;
+    }
+};
 
 // Helper to get image URL
 export const getImageUrl = (imageId: number | string) => {

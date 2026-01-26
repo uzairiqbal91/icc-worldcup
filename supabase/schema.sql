@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS teams (
     team_id INTEGER UNIQUE NOT NULL,
     name TEXT NOT NULL,
     short_name TEXT,
-    image_id INTEGER, -- For logo fetching
+    image_id INTEGER, -- For logo fetching (use /api/proxy-image?id={image_id} for full URL)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -35,11 +35,17 @@ CREATE TABLE IF NOT EXISTS players (
     name TEXT NOT NULL,
     team_id INTEGER REFERENCES teams(team_id),
     role TEXT,
-    face_image_id INTEGER, -- For player image
+    face_image_id INTEGER, -- For player image ID
+    face_image_url TEXT, -- Full image URL
     batting_style TEXT,
     bowling_style TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Migration: Add face_image_url column if upgrading from old schema
+-- ALTER TABLE players ADD COLUMN IF NOT EXISTS face_image_url TEXT;
+-- ALTER TABLE players ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- Create scores table (snapshots of usage)
 CREATE TABLE IF NOT EXISTS scores (
