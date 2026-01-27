@@ -2,7 +2,9 @@
  * COMPLETE DATA SAVER WITH FULL IMAGE URLs
  *
  * Saves ALL data with FULL image URLs (not just IDs)
- * Image URL format: https://static.cricbuzz.com/a/img/v1/152x152/i1/c{imageId}/i.jpg
+ * Image URL format: https://cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c{imageId}/i.jpg?p=de&d=high
+ * Parameters: p=de (default size), d=high (quality)
+ * Note: 'c' prefix is added to imageId as per API requirement
  */
 
 import axios from 'axios';
@@ -28,10 +30,13 @@ const api = axios.create({
     },
 });
 
-// FULL Image URL helper - returns complete URL you can open in browser
-const getFullImageUrl = (imageId: number | string | undefined | null, size: string = '152x152'): string | null => {
+// FULL Image URL helper - returns complete URL with RapidAPI format
+// p = de (default), hs (horizontal small), vs (vertical small)
+// d = high, low
+const getFullImageUrl = (imageId: number | string | undefined | null, size: 'de' | 'hs' | 'vs' = 'de', quality: 'high' | 'low' = 'high'): string | null => {
     if (!imageId || imageId === 0 || imageId === '0') return null;
-    return `https://static.cricbuzz.com/a/img/v1/${size}/i1/c${imageId}/i.jpg`;
+    // Format: c{imageId} with p and d parameters
+    return `https://${RAPIDAPI_HOST}/img/v1/i1/c${imageId}/i.jpg?p=${size}&d=${quality}`;
 };
 
 // Split name helper
@@ -104,13 +109,17 @@ async function saveCompleteData() {
             team_id: matchInfo.team1?.teamid,
             name: matchInfo.team1?.teamname || 'Team 1',
             short_name: matchInfo.team1?.teamsname || 'T1',
-            image_id: team1ImageId
+            image_id: team1ImageId,
+            image_url: getFullImageUrl(team1ImageId),
+            updated_at: new Date().toISOString()
         };
         const team2Data = {
             team_id: matchInfo.team2?.teamid,
             name: matchInfo.team2?.teamname || 'Team 2',
             short_name: matchInfo.team2?.teamsname || 'T2',
-            image_id: team2ImageId
+            image_id: team2ImageId,
+            image_url: getFullImageUrl(team2ImageId),
+            updated_at: new Date().toISOString()
         };
 
         await supabase.from('teams').upsert(team1Data, { onConflict: 'team_id' });
@@ -149,8 +158,10 @@ async function saveCompleteData() {
                     team_id: player.teamId,
                     role: profile.role || 'Unknown',
                     face_image_id: profile.faceImageId || null,
+                    face_image_url: getFullImageUrl(profile.faceImageId),
                     batting_style: profile.bat || null,
-                    bowling_style: profile.bowl || null
+                    bowling_style: profile.bowl || null,
+                    updated_at: new Date().toISOString()
                 };
 
                 await supabase.from('players').upsert(playerData, { onConflict: 'player_id' });
@@ -166,7 +177,9 @@ async function saveCompleteData() {
                     name: player.name,
                     team_id: player.teamId,
                     role: 'Unknown',
-                    face_image_id: null
+                    face_image_id: null,
+                    face_image_url: null,
+                    updated_at: new Date().toISOString()
                 };
                 await supabase.from('players').upsert(playerData, { onConflict: 'player_id' });
                 playerCount++;
@@ -290,8 +303,8 @@ async function saveCompleteData() {
                 winnerId: tossResults.tosswinnerid,
                 decision: tossResults.decision?.toLowerCase() || 'unknown',
                 text: matchInfo.tossstatus,
-                tossImageUrl: getFullImageUrl(matchImageId, '800x450'),
-                matchImageUrl: getFullImageUrl(matchImageId, '800x450'),
+                tossImageUrl: getFullImageUrl(matchImageId, 'de', 'high'),
+                matchImageUrl: getFullImageUrl(matchImageId, 'de', 'high'),
                 team1: {
                     id: team1Data.team_id,
                     name: team1Data.name,
@@ -334,7 +347,7 @@ async function saveCompleteData() {
                         teamShortName: innings.batteamsname,
                         teamId: teamData.team_id,
                         teamLogoUrl: getFullImageUrl(teamImageId),
-                        battingTeamImageUrl: getFullImageUrl(matchImageId, '800x450'),
+                        battingTeamImageUrl: getFullImageUrl(matchImageId, 'de', 'high'),
                         powerplayRuns: pp.run,
                         powerplayWickets: pp.wickets,
                         powerplayOvers: pp.ovrto,
@@ -452,7 +465,7 @@ async function saveCompleteData() {
                     teamShortName: innings.batteamsname,
                     teamId: teamData.team_id,
                     teamLogoUrl: getFullImageUrl(teamImageId),
-                    teamImageUrl: getFullImageUrl(matchImageId, '800x450'),
+                    teamImageUrl: getFullImageUrl(matchImageId, 'de', 'high'),
                     totalRuns: innings.score,
                     totalWickets: innings.wickets,
                     totalOvers: innings.overs,
@@ -488,7 +501,7 @@ async function saveCompleteData() {
                     captainImageUrl: getFullImageUrl(team2CaptainProfile?.faceImageId),
                     team1LogoUrl: getFullImageUrl(team1ImageId),
                     team2LogoUrl: getFullImageUrl(team2ImageId),
-                    matchImageUrl: getFullImageUrl(matchImageId, '800x450')
+                    matchImageUrl: getFullImageUrl(matchImageId, 'de', 'high')
                 }
             });
             console.log(`   ✓ INNINGS_BREAK saved`);
@@ -533,7 +546,7 @@ async function saveCompleteData() {
                     logoUrl: getFullImageUrl(team2ImageId),
                     score: innings2 ? `${innings2.score}/${innings2.wickets}` : null
                 },
-                matchImageUrl: getFullImageUrl(matchImageId, '800x450')
+                matchImageUrl: getFullImageUrl(matchImageId, 'de', 'high')
             }
         });
         console.log(`   ✓ MATCH_END saved`);
@@ -617,7 +630,7 @@ async function saveCompleteData() {
         console.log(`\n   NZ Logo:`);
         console.log(`   ${getFullImageUrl(team2ImageId)}`);
         console.log(`\n   Match Image:`);
-        console.log(`   ${getFullImageUrl(matchImageId, '800x450')}`);
+        console.log(`   ${getFullImageUrl(matchImageId, 'de', 'high')}`);
         if (momPlayers.length > 0) {
             console.log(`\n   Player of Match (${momPlayers[0].name}):`);
             console.log(`   ${getFullImageUrl(momPlayers[0].faceimageid)}`);

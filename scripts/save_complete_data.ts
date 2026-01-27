@@ -42,10 +42,17 @@ const api = axios.create({
     },
 });
 
-// Image URL helper
+// Image URL helper - returns proxy URL for client-side usage
 const getImageUrl = (imageId: number | string | undefined | null): string | null => {
     if (!imageId || imageId === 0 || imageId === '0') return null;
     return `/api/proxy-image?id=${imageId}`;
+};
+
+// Full image URL helper - returns complete URL for database storage
+// Uses RapidAPI format: p=de (size), d=high (quality), imageId with 'c' prefix
+const getFullImageUrl = (imageId: number | string | undefined | null): string | null => {
+    if (!imageId || imageId === 0 || imageId === '0') return null;
+    return `https://${RAPIDAPI_HOST}/img/v1/i1/c${imageId}/i.jpg?p=de&d=high`;
 };
 
 // Split name helper

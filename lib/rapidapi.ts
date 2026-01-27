@@ -64,18 +64,26 @@ export const getInternationalSeries = async () => {
     }
 };
 
-// Helper to get image URL
+// Helper to get image URL via local proxy (hides API key)
 export const getImageUrl = (imageId: number | string) => {
-    // Cricbuzz images are often accessible directly via a pattern, or we use the API
-    // We use our local proxy to hide keys
-    // Assuming the app is hosted at the same domain.
-    // For the backend worker (which inserts into DB), we should store the RELATIVE path
-    // or the FULL path if we know the domain. 
-    // Since the frontend uses the specific payload, standard practice is to store the image ID
-    // or store the proxy URL. 
-    // Let's store the proxy URL path: `/api/proxy-image?id=${imageId}`
-    // The frontend will prepend the domain if needed, or if it's Next.js it works naturally.
+    if (!imageId || imageId === 0 || imageId === '0') return null;
     return `/api/proxy-image?id=${imageId}`;
+};
+
+// Helper to get full image URL for storing in database
+// Uses Cricbuzz get-image API format: p=de, d=high, imageId with 'c' prefix
+export const getFullImageUrl = (imageId: number | string | undefined | null): string | null => {
+    if (!imageId || imageId === 0 || imageId === '0') return null;
+    // Format: https://cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c{imageId}/i.jpg?p=de&d=high
+    return `https://${RAPIDAPI_HOST}/img/v1/i1/c${imageId}/i.jpg?p=de&d=high`;
+};
+
+// Helper to get image URL for different sizes
+export const getImageUrlWithSize = (imageId: number | string | undefined | null, size: 'de' | 'hs' | 'vs' = 'de', quality: 'high' | 'low' = 'high'): string | null => {
+    if (!imageId || imageId === 0 || imageId === '0') return null;
+    // p parameter: de (default), hs (horizontal small), vs (vertical small)
+    // d parameter: high, low
+    return `https://${RAPIDAPI_HOST}/img/v1/i1/c${imageId}/i.jpg?p=${size}&d=${quality}`;
 };
 
 export const getPlayerParams = async (playerId: string) => {

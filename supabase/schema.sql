@@ -24,9 +24,15 @@ CREATE TABLE IF NOT EXISTS teams (
     team_id INTEGER UNIQUE NOT NULL,
     name TEXT NOT NULL,
     short_name TEXT,
-    image_id INTEGER, -- For logo fetching (use /api/proxy-image?id={image_id} for full URL)
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    image_id INTEGER, -- For logo fetching
+    image_url TEXT, -- Full image URL (format: https://cricbuzz-cricket.p.rapidapi.com/img/v1/i1/c{imageId}/i.jpg?p=de&d=high)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Migration: Add image_url column if upgrading from old schema
+-- ALTER TABLE teams ADD COLUMN IF NOT EXISTS image_url TEXT;
+-- ALTER TABLE teams ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- Create players table
 CREATE TABLE IF NOT EXISTS players (

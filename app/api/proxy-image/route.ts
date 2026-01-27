@@ -26,8 +26,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     if (!id) return NextResponse.json({ error: "Image ID required" }, { status: 400 });
 
+    // Get optional parameters for size and quality
+    const p = searchParams.get('p') || 'de'; // de (default), hs (horizontal small), vs (vertical small)
+    const d = searchParams.get('d') || 'high'; // high, low
+
     try {
-        const url = `https://${RAPIDAPI_HOST}/img/v1/i1/c${id}/i.jpg`;
+        // Format: c{imageId} with p=de, d=high parameters
+        const url = `https://${RAPIDAPI_HOST}/img/v1/i1/c${id}/i.jpg?p=${p}&d=${d}`;
         const response = await axios.get(url, {
             headers: {
                 'x-rapidapi-key': RAPIDAPI_KEY,

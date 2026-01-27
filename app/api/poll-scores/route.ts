@@ -16,10 +16,17 @@ let playerScores: Record<number, number> = {}; // Track player scores for milest
 let playerImages: Record<number, string> = {}; // Cache player images
 let playerImageFetchQueue: Set<number> = new Set(); // Track which players we're fetching
 
-// Helper to get full image URL from our proxy
+// Helper to get full image URL from our proxy (for client-side usage)
 function getProxyImageUrl(imageId: number | string | undefined | null) {
     if (!imageId || imageId === 0) return null;
     return `/api/proxy-image?id=${imageId}`;
+}
+
+// Helper to get full image URL for database storage
+// Uses RapidAPI format: p=de (size), d=high (quality), imageId with 'c' prefix
+function getFullImageUrl(imageId: number | string | undefined | null): string | null {
+    if (!imageId || imageId === 0 || imageId === '0') return null;
+    return `https://${RAPIDAPI_HOST}/img/v1/i1/c${imageId}/i.jpg?p=de&d=high`;
 }
 
 async function callCricbuzzAPI(endpoint: string) {
@@ -58,16 +65,17 @@ async function fetchPlayerImage(playerId: number): Promise<string | null> {
         const result = await callCricbuzzAPI(`/stats/v1/player/${playerId}`);
         if (result.success && result.data) {
             const playerData = result.data;
-            const imageUrl = playerData.image || null;
             const faceImageId = playerData.faceImageId;
+            // Use full image URL format with p=de, d=high and 'c' prefix for imageId
+            const fullImageUrl = getFullImageUrl(faceImageId);
 
-            // Save player to database
+            // Save player to database with full image URL
             const playerRecord = {
                 player_id: parseInt(playerData.id),
                 name: playerData.name || playerData.nickName,
                 role: playerData.role || null,
                 face_image_id: faceImageId || null,
-                face_image_url: imageUrl,
+                face_image_url: fullImageUrl, // Store full URL with p=de&d=high format
                 batting_style: playerData.bat || null,
                 bowling_style: playerData.bowl || null,
                 updated_at: new Date().toISOString()
@@ -82,9 +90,9 @@ async function fetchPlayerImage(playerId: number): Promise<string | null> {
                 console.error(`Error saving player ${playerId}:`, error.message);
             }
 
-            if (imageUrl) {
-                playerImages[playerId] = imageUrl;
-                return imageUrl;
+            if (fullImageUrl) {
+                playerImages[playerId] = fullImageUrl;
+                return fullImageUrl;
             } else if (faceImageId) {
                 const proxyUrl = getProxyImageUrl(faceImageId);
                 if (proxyUrl) {
