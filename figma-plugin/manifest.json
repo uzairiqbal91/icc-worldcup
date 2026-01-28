@@ -1,0 +1,8 @@
+{
+  "name": "ICC Match Poster Editor",
+  "id": "icc-match-poster-editor",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"]
+}
