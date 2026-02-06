@@ -28,6 +28,17 @@ let highestScoresCache: Record<string, InningsCache> = {}; // key: matchId-innin
 // Track completed matches to stop polling for them
 let completedMatchIds: Set<number> = new Set();
 
+// Track which events have been detected (to avoid duplicates)
+interface MatchEventsTracked {
+    toss: boolean;
+    playingXI: boolean;
+    powerplay: boolean[];  // per innings
+    inningsEnd: boolean[]; // per innings
+    targetSet: boolean;
+    matchResult: boolean;
+}
+let matchEventsTracked: Record<number, MatchEventsTracked> = {};
+
 // Helper to get full image URL from our proxy (for client-side usage)
 function getProxyImageUrl(imageId: number | string | undefined | null) {
     if (!imageId || imageId === 0) return null;
@@ -255,8 +266,59 @@ export async function GET(request: NextRequest) {
     // Collect all player IDs for image fetching
     const allPlayerIds: number[] = [];
 
-    // Fetch scorecard for each match
+    // Fetch scorecard and match info for each match
     for (const matchId of cachedMatchIds) {
+        // Initialize event tracking for this match if not exists
+        if (!matchEventsTracked[matchId]) {
+            matchEventsTracked[matchId] = {
+                toss: false,
+                playingXI: false,
+                powerplay: [false, false],
+                inningsEnd: [false, false],
+                targetSet: false,
+                matchResult: false
+            };
+        }
+        const tracked = matchEventsTracked[matchId];
+
+        // Fetch match info for toss and playing XI
+        const matchInfoResult = await callCricbuzzAPI(`/mcenter/v1/${matchId}`);
+
+        if (matchInfoResult.success && matchInfoResult.data) {
+            const matchInfo = matchInfoResult.data.matchInfo;
+
+            // Check for Toss event
+            if (matchInfo?.tossResults && !tracked.toss) {
+                tracked.toss = true;
+                milestones.push({
+                    type: 'toss',
+                    matchId,
+                    tossWinner: matchInfo.tossResults.tossWinnerName,
+                    tossDecision: matchInfo.tossResults.decision,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            // Check for Playing XI event
+            if (matchInfo?.team1?.playerDetails && matchInfo?.team2?.playerDetails && !tracked.playingXI) {
+                const team1Playing = matchInfo.team1.playerDetails.filter((p: any) => p.isPlaying);
+                const team2Playing = matchInfo.team2.playerDetails.filter((p: any) => p.isPlaying);
+
+                if (team1Playing.length > 0 || team2Playing.length > 0) {
+                    tracked.playingXI = true;
+                    milestones.push({
+                        type: 'playing_xi',
+                        matchId,
+                        team1Name: matchInfo.team1.teamSName,
+                        team2Name: matchInfo.team2.teamSName,
+                        team1Players: team1Playing.map((p: any) => p.fullName || p.name).slice(0, 11),
+                        team2Players: team2Playing.map((p: any) => p.fullName || p.name).slice(0, 11),
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            }
+        }
+
         logs.push({
             type: 'api_call_start',
             endpoint: `/mcenter/v1/${matchId}/scard`,
@@ -344,8 +406,7 @@ export async function GET(request: NextRequest) {
                                 balls: bat.balls,
                                 fours: bat.fours,
                                 sixes: bat.sixes,
-                                strikeRate: bat.strkrate,
-                                imageUrl: playerImages[playerId] || null
+                                strikeRate: bat.strkrate
                             },
                             team: inning.batteamsname || inning.batteamname,
                             timestamp: new Date().toISOString()
@@ -365,8 +426,7 @@ export async function GET(request: NextRequest) {
                                 balls: bat.balls,
                                 fours: bat.fours,
                                 sixes: bat.sixes,
-                                strikeRate: bat.strkrate,
-                                imageUrl: playerImages[playerId] || null
+                                strikeRate: bat.strkrate
                             },
                             team: inning.batteamsname || inning.batteamname,
                             timestamp: new Date().toISOString()
@@ -374,6 +434,46 @@ export async function GET(request: NextRequest) {
                         milestones.push(milestoneData);
                     }
                 });
+
+                // Check for powerplay end (6 overs completed)
+                if (currentOvers >= 6 && !tracked.powerplay[inningsIndex]) {
+                    tracked.powerplay[inningsIndex] = true;
+                    milestones.push({
+                        type: 'powerplay',
+                        matchId,
+                        battingTeam: inning.batteamsname || inning.batteamname,
+                        score: currentScore,
+                        wickets: currentWickets,
+                        overs: 6,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                // Check for innings end (all out or overs complete)
+                const isInningsComplete = inning.isinningscomplete || currentWickets >= 10;
+                if (isInningsComplete && !tracked.inningsEnd[inningsIndex]) {
+                    tracked.inningsEnd[inningsIndex] = true;
+                    milestones.push({
+                        type: 'innings_end',
+                        matchId,
+                        battingTeam: inning.batteamsname || inning.batteamname,
+                        score: currentScore,
+                        wickets: currentWickets,
+                        overs: currentOvers,
+                        timestamp: new Date().toISOString()
+                    });
+
+                    // Set target after first innings
+                    if (inningsIndex === 0 && !tracked.targetSet) {
+                        tracked.targetSet = true;
+                        milestones.push({
+                            type: 'target_set',
+                            matchId,
+                            target: currentScore + 1,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
 
                 // Use cached (highest) values to prevent score going backwards
                 return {
@@ -429,10 +529,21 @@ export async function GET(request: NextRequest) {
                 timestamp: new Date().toISOString()
             });
 
-            // Track completed matches
+            // Track completed matches and add result event
             if (isComplete) {
                 completedMatchIds.add(matchId);
                 cachedMatchIds = cachedMatchIds.filter(id => id !== matchId);
+
+                // Add match result event (only once)
+                if (!tracked.matchResult) {
+                    tracked.matchResult = true;
+                    milestones.push({
+                        type: 'match_result',
+                        matchId,
+                        result: status,
+                        timestamp: new Date().toISOString()
+                    });
+                }
             }
         }
     }

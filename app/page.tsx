@@ -66,19 +66,37 @@ interface Match {
     category?: string;
 }
 
-interface Milestone {
-    milestone: number;
+interface MatchEvent {
+    type: 'milestone' | 'playing_xi' | 'toss' | 'powerplay' | 'innings_end' | 'target_set' | 'match_result';
     matchId: number;
-    player: Player;
-    team: string;
     timestamp: string;
+    // For player milestones
+    milestone?: number;
+    player?: Player;
+    team?: string;
+    // For toss
+    tossWinner?: string;
+    tossDecision?: string;
+    // For powerplay/innings
+    score?: number;
+    wickets?: number;
+    overs?: number;
+    battingTeam?: string;
+    // For target
+    target?: number;
+    // For match result
+    result?: string;
+    winner?: string;
+    // For playing XI
+    team1Players?: string[];
+    team2Players?: string[];
 }
 
 type TabType = 'score' | 'milestones' | 'images';
 
 export default function Home() {
     const [matches, setMatches] = useState<Match[]>([]);
-    const [milestonesByMatch, setMilestonesByMatch] = useState<Record<number, Milestone[]>>({});
+    const [eventsByMatch, setEventsByMatch] = useState<Record<number, MatchEvent[]>>({});
     const [selectedMatch, setSelectedMatch] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [lastUpdate, setLastUpdate] = useState<string>('');
@@ -112,20 +130,30 @@ export default function Home() {
                     }
                 }
 
-                if (newMilestones.length > 0) {
-                    setMilestonesByMatch(prev => {
+                // Process all match events (milestones, powerplay, innings end, etc.)
+                const allEvents = data.logs.filter((log: any) =>
+                    ['milestone', 'playing_xi', 'toss', 'powerplay', 'innings_end', 'target_set', 'match_result'].includes(log.type)
+                );
+
+                if (allEvents.length > 0) {
+                    setEventsByMatch(prev => {
                         const updated = { ...prev };
-                        newMilestones.forEach((m: Milestone) => {
-                            const matchId = m.matchId;
+                        allEvents.forEach((event: MatchEvent) => {
+                            const matchId = event.matchId;
                             if (!updated[matchId]) {
                                 updated[matchId] = [];
                             }
-                            // Check if milestone already exists for this player
-                            const exists = updated[matchId].some(
-                                existing => existing.player?.id === m.player?.id && existing.milestone === m.milestone
-                            );
+                            // Check if event already exists
+                            const exists = updated[matchId].some(existing => {
+                                if (event.type === 'milestone') {
+                                    return existing.type === 'milestone' &&
+                                           existing.player?.id === event.player?.id &&
+                                           existing.milestone === event.milestone;
+                                }
+                                return existing.type === event.type && existing.timestamp === event.timestamp;
+                            });
                             if (!exists) {
-                                updated[matchId] = [m, ...updated[matchId]].slice(0, 10);
+                                updated[matchId] = [event, ...updated[matchId]].slice(0, 20);
                             }
                         });
                         return updated;
@@ -367,7 +395,7 @@ export default function Home() {
                                                         : 'bg-white/20 text-white hover:bg-white/30'
                                                 }`}
                                             >
-                                                Milestones ({milestonesByMatch[selectedMatchData.matchId]?.length || 0})
+                                                Milestones ({eventsByMatch[selectedMatchData.matchId]?.length || 0})
                                             </button>
                                             <button
                                                 onClick={() => setActiveTab('images')}
@@ -441,15 +469,7 @@ export default function Home() {
                                                                                 >
                                                                                     <td className="py-3 px-4">
                                                                                         <div className="flex items-center gap-3">
-                                                                                            {bat.imageUrl && (
-                                                                                                <img
-                                                                                                    src={bat.imageUrl}
-                                                                                                    alt={bat.name}
-                                                                                                    className="w-8 h-8 rounded-full object-cover border border-gray-200"
-                                                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                                                                                                />
-                                                                                            )}
-                                                                                            <div>
+                                                                                                                                                                                        <div>
                                                                                                 <span className={`font-medium ${bat.isOut ? 'text-gray-400' : 'text-gray-800'}`}>
                                                                                                     {bat.name}
                                                                                                     {!bat.isOut && <span className="text-green-600">*</span>}
@@ -507,15 +527,7 @@ export default function Home() {
                                                                             <tr key={i} className="border-b border-gray-100 bg-white">
                                                                                 <td className="py-3 px-4">
                                                                                     <div className="flex items-center gap-3">
-                                                                                        {bowl.imageUrl && (
-                                                                                            <img
-                                                                                                src={bowl.imageUrl}
-                                                                                                alt={bowl.name}
-                                                                                                className="w-8 h-8 rounded-full object-cover border border-gray-200"
-                                                                                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                                                                                            />
-                                                                                        )}
-                                                                                        <span className="text-gray-800 font-medium">{bowl.name}</span>
+                                                                                                                                                                                <span className="text-gray-800 font-medium">{bowl.name}</span>
                                                                                     </div>
                                                                                 </td>
                                                                                 <td className="text-center py-3 px-2 text-gray-600">{bowl.overs}</td>
@@ -544,43 +556,181 @@ export default function Home() {
                                     {/* Milestones Tab */}
                                     {activeTab === 'milestones' && (
                                         <div className="p-6">
-                                            {milestonesByMatch[selectedMatchData.matchId]?.length > 0 ? (
+                                            {eventsByMatch[selectedMatchData.matchId]?.length > 0 ? (
                                                 <div className="space-y-4">
-                                                    {milestonesByMatch[selectedMatchData.matchId].map((m, i) => (
+                                                    {eventsByMatch[selectedMatchData.matchId].map((event, i) => (
                                                         <div
-                                                            key={`${m.player?.id}-${m.milestone}-${i}`}
+                                                            key={`${event.type}-${i}`}
                                                             className={`flex items-center gap-4 p-4 rounded-xl ${
-                                                                m.milestone === 100
+                                                                event.type === 'milestone' && event.milestone === 100
                                                                     ? 'bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-300'
-                                                                    : 'bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300'
+                                                                    : event.type === 'milestone'
+                                                                        ? 'bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300'
+                                                                        : event.type === 'toss'
+                                                                            ? 'bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-300'
+                                                                            : event.type === 'powerplay'
+                                                                                ? 'bg-gradient-to-r from-purple-100 to-pink-100 border border-purple-300'
+                                                                                : event.type === 'innings_end' || event.type === 'target_set'
+                                                                                    ? 'bg-gradient-to-r from-amber-100 to-yellow-100 border border-amber-300'
+                                                                                    : event.type === 'match_result'
+                                                                                        ? 'bg-gradient-to-r from-emerald-100 to-teal-100 border border-emerald-300'
+                                                                                        : 'bg-gradient-to-r from-gray-100 to-slate-100 border border-gray-300'
                                                             }`}
                                                         >
-                                                            {m.player?.imageUrl && (
-                                                                <img
-                                                                    src={m.player.imageUrl}
-                                                                    alt={m.player?.name}
-                                                                    className={`w-16 h-16 rounded-full object-cover border-3 ${
-                                                                        m.milestone === 100 ? 'border-yellow-500' : 'border-green-500'
-                                                                    }`}
-                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                                                                />
-                                                            )}
+                                                            {/* Event Icon */}
+                                                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl ${
+                                                                event.type === 'milestone' && event.milestone === 100 ? 'bg-yellow-500' :
+                                                                event.type === 'milestone' ? 'bg-green-500' :
+                                                                event.type === 'toss' ? 'bg-blue-500' :
+                                                                event.type === 'powerplay' ? 'bg-purple-500' :
+                                                                event.type === 'innings_end' ? 'bg-amber-500' :
+                                                                event.type === 'target_set' ? 'bg-orange-500' :
+                                                                event.type === 'match_result' ? 'bg-emerald-500' :
+                                                                'bg-gray-500'
+                                                            }`}>
+                                                                {event.type === 'milestone' && event.milestone === 100 ? '💯' :
+                                                                 event.type === 'milestone' ? '🏏' :
+                                                                 event.type === 'toss' ? '🪙' :
+                                                                 event.type === 'powerplay' ? '⚡' :
+                                                                 event.type === 'innings_end' ? '📊' :
+                                                                 event.type === 'target_set' ? '🎯' :
+                                                                 event.type === 'match_result' ? '🏆' :
+                                                                 event.type === 'playing_xi' ? '📋' : '📢'}
+                                                            </div>
+
+
                                                             <div className="flex-1">
-                                                                <div className={`font-bold text-xl ${m.milestone === 100 ? 'text-orange-700' : 'text-green-700'}`}>
-                                                                    {m.player?.name}
-                                                                    <span className={`ml-3 px-3 py-1 rounded text-sm ${
-                                                                        m.milestone === 100 ? 'bg-yellow-500 text-white' : 'bg-green-600 text-white'
-                                                                    }`}>
-                                                                        {m.milestone === 100 ? '💯 Century!' : '50+ Runs'}
-                                                                    </span>
+                                                                {/* Milestone Event */}
+                                                                {event.type === 'milestone' && (
+                                                                    <>
+                                                                        <div className={`font-bold text-xl ${event.milestone === 100 ? 'text-orange-700' : 'text-green-700'}`}>
+                                                                            {event.player?.name}
+                                                                            <span className={`ml-3 px-3 py-1 rounded text-sm ${
+                                                                                event.milestone === 100 ? 'bg-yellow-500 text-white' : 'bg-green-600 text-white'
+                                                                            }`}>
+                                                                                {event.milestone === 100 ? 'Century!' : '50+ Runs'}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="text-gray-600 mt-1">
+                                                                            {event.player?.runs} runs off {event.player?.balls} balls
+                                                                        </div>
+                                                                        <div className="text-sm text-gray-500 mt-1">
+                                                                            {event.player?.fours} fours • {event.player?.sixes} sixes • SR: {event.player?.strikeRate}
+                                                                        </div>
+                                                                        <div className="text-xs text-gray-400 mt-1">{event.team}</div>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Toss Event */}
+                                                                {event.type === 'toss' && (
+                                                                    <>
+                                                                        <div className="font-bold text-xl text-blue-700">Toss Result</div>
+                                                                        <div className="text-gray-600 mt-1">
+                                                                            <span className="font-semibold">{event.tossWinner}</span> won the toss
+                                                                        </div>
+                                                                        <div className="text-sm text-gray-500">
+                                                                            Elected to <span className="font-medium">{event.tossDecision}</span> first
+                                                                        </div>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Powerplay Event */}
+                                                                {event.type === 'powerplay' && (
+                                                                    <>
+                                                                        <div className="font-bold text-xl text-purple-700">
+                                                                            Powerplay Complete
+                                                                            <span className="ml-3 px-3 py-1 rounded text-sm bg-purple-500 text-white">
+                                                                                ⚡ 6 Overs
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="text-gray-600 mt-1">
+                                                                            {event.battingTeam}: <span className="font-bold">{event.score}/{event.wickets}</span>
+                                                                        </div>
+                                                                        <div className="text-sm text-gray-500">After {event.overs} overs</div>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Innings End Event */}
+                                                                {event.type === 'innings_end' && (
+                                                                    <>
+                                                                        <div className="font-bold text-xl text-amber-700">
+                                                                            Innings Complete
+                                                                            <span className="ml-3 px-3 py-1 rounded text-sm bg-amber-500 text-white">
+                                                                                📊 End of Innings
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="text-gray-600 mt-1">
+                                                                            {event.battingTeam}: <span className="font-bold text-2xl">{event.score}/{event.wickets}</span>
+                                                                        </div>
+                                                                        <div className="text-sm text-gray-500">in {event.overs} overs</div>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Target Set Event */}
+                                                                {event.type === 'target_set' && (
+                                                                    <>
+                                                                        <div className="font-bold text-xl text-orange-700">
+                                                                            Target Set
+                                                                            <span className="ml-3 px-3 py-1 rounded text-sm bg-orange-500 text-white">
+                                                                                🎯 Chase On
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="text-3xl font-bold text-orange-600 mt-1">
+                                                                            {event.target} runs to win
+                                                                        </div>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Match Result Event */}
+                                                                {event.type === 'match_result' && (
+                                                                    <>
+                                                                        <div className="font-bold text-xl text-emerald-700">
+                                                                            Match Result
+                                                                            <span className="ml-3 px-3 py-1 rounded text-sm bg-emerald-500 text-white">
+                                                                                🏆 Final
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="text-gray-700 mt-1 text-lg font-semibold">
+                                                                            {event.result}
+                                                                        </div>
+                                                                        {event.winner && (
+                                                                            <div className="text-emerald-600 font-bold mt-1">
+                                                                                Winner: {event.winner}
+                                                                            </div>
+                                                                        )}
+                                                                    </>
+                                                                )}
+
+                                                                {/* Playing XI Event */}
+                                                                {event.type === 'playing_xi' && (
+                                                                    <>
+                                                                        <div className="font-bold text-xl text-gray-700">
+                                                                            Playing XI Announced
+                                                                            <span className="ml-3 px-3 py-1 rounded text-sm bg-gray-500 text-white">
+                                                                                📋 Lineups
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-2 gap-4 mt-2">
+                                                                            <div>
+                                                                                <div className="font-semibold text-gray-700">{(event as any).team1Name}</div>
+                                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                                    {(event as any).team1Players?.slice(0, 5).join(', ')}...
+                                                                                </div>
+                                                                            </div>
+                                                                            <div>
+                                                                                <div className="font-semibold text-gray-700">{(event as any).team2Name}</div>
+                                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                                    {(event as any).team2Players?.slice(0, 5).join(', ')}...
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Timestamp */}
+                                                                <div className="text-xs text-gray-400 mt-2">
+                                                                    {new Date(event.timestamp).toLocaleTimeString()}
                                                                 </div>
-                                                                <div className="text-gray-600 mt-1">
-                                                                    {m.player?.runs} runs off {m.player?.balls} balls
-                                                                </div>
-                                                                <div className="text-sm text-gray-500 mt-1">
-                                                                    {m.player?.fours} fours • {m.player?.sixes} sixes • SR: {m.player?.strikeRate}
-                                                                </div>
-                                                                <div className="text-xs text-gray-400 mt-1">{m.team}</div>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -588,7 +738,8 @@ export default function Home() {
                                             ) : (
                                                 <div className="text-center py-12">
                                                     <div className="text-4xl mb-4">🎯</div>
-                                                    <p className="text-gray-500">No milestones yet in this match</p>
+                                                    <p className="text-gray-500">No events yet in this match</p>
+                                                    <p className="text-sm text-gray-400 mt-2">Events will appear here as the match progresses</p>
                                                 </div>
                                             )}
                                         </div>
