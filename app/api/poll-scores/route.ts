@@ -16,6 +16,18 @@ let playerScores: Record<number, number> = {}; // Track player scores for milest
 let playerImages: Record<number, string> = {}; // Cache player images
 let playerImageFetchQueue: Set<number> = new Set(); // Track which players we're fetching
 
+// Cache for highest scores seen (to prevent score going backwards)
+interface InningsCache {
+    score: number;
+    wickets: number;
+    overs: number;
+    batsmen: Record<number, { runs: number; balls: number; fours: number; sixes: number }>;
+}
+let highestScoresCache: Record<string, InningsCache> = {}; // key: matchId-inningsIndex
+
+// Track completed matches to stop polling for them
+let completedMatchIds: Set<number> = new Set();
+
 // Helper to get full image URL from our proxy (for client-side usage)
 function getProxyImageUrl(imageId: number | string | undefined | null) {
     if (!imageId || imageId === 0) return null;
@@ -158,10 +170,14 @@ export async function GET(request: NextRequest) {
     const milestones: any[] = [];
     const now = Date.now();
 
-    // Only fetch live matches once every 5 minutes or if no cached matches
-    const shouldFetchMatches = cachedMatchIds.length === 0 || (now - lastMatchFetch > 300000);
+    // Always fetch fresh matches (caching disabled for testing)
+    const shouldFetchMatches = true;
+
+    // Note: playerScores persists to track milestones properly
 
     if (shouldFetchMatches) {
+        // Clear previous cache to get fresh data
+        cachedMatchIds = [];
         logs.push({
             type: 'api_call_start',
             endpoint: '/matches/v1/live',
@@ -183,15 +199,26 @@ export async function GET(request: NextRequest) {
         if (liveResult.success && liveResult.data?.typeMatches) {
             const internationalMatches: any[] = [];
 
+            // Get international + domestic matches
             liveResult.data.typeMatches.forEach((type: any) => {
-                if (type.matchType?.toLowerCase() === 'international') {
+                const matchType = type.matchType?.toLowerCase();
+                // Include both international and domestic matches
+                if (matchType === 'international' || matchType === 'domestic' || matchType === 'league') {
                     const seriesMatches = type.seriesMatches || [];
                     seriesMatches.forEach((series: any) => {
                         if (series.seriesAdWrapper) {
                             const matches = series.seriesAdWrapper.matches || [];
                             matches.forEach((m: any) => {
-                                if (m.matchInfo && m.matchInfo.state === 'In Progress') {
-                                    internationalMatches.push(m.matchInfo);
+                                if (m.matchInfo) {
+                                    // Filter: Only show INDU19 vs ENGU19 for now
+                                    const team1 = m.matchInfo.team1?.teamSName;
+                                    const team2 = m.matchInfo.team2?.teamSName;
+                                    if ((team1 === 'INDU19' && team2 === 'ENGU19') || (team1 === 'ENGU19' && team2 === 'INDU19')) {
+                                        internationalMatches.push({
+                                            ...m.matchInfo,
+                                            category: type.matchType
+                                        });
+                                    }
                                 }
                             });
                         }
@@ -209,7 +236,13 @@ export async function GET(request: NextRequest) {
                     team1Logo: getProxyImageUrl(m.team1?.imageId),
                     team2: m.team2?.teamSName,
                     team2Logo: getProxyImageUrl(m.team2?.imageId),
-                    state: m.state
+                    state: m.state,
+                    startDate: m.startDate,
+                    endDate: m.endDate,
+                    venueInfo: m.venueInfo?.ground,
+                    seriesName: m.seriesName,
+                    matchFormat: m.matchFormat,
+                    category: m.category
                 })),
                 timestamp: new Date().toISOString()
             });
@@ -249,57 +282,57 @@ export async function GET(request: NextRequest) {
             const isComplete = scorecard.ismatchcomplete;
 
             // Process each innings for scores and milestones
-            const scores = innings.map((inning: any) => {
+            const scores = innings.map((inning: any, inningsIndex: number) => {
                 const batsmen = inning.batsman || [];
                 const bowlers = inning.bowler || [];
+                const cacheKey = `${matchId}-${inningsIndex}`;
+
+                // Get or initialize cache for this innings
+                if (!highestScoresCache[cacheKey]) {
+                    highestScoresCache[cacheKey] = {
+                        score: 0,
+                        wickets: 0,
+                        overs: 0,
+                        batsmen: {}
+                    };
+                }
+                const cache = highestScoresCache[cacheKey];
+
+                // Update cache with highest values (scores should only go up)
+                const currentScore = inning.score || 0;
+                const currentWickets = inning.wickets || 0;
+                const currentOvers = inning.overs || 0;
+
+                if (currentScore >= cache.score) {
+                    cache.score = currentScore;
+                    cache.wickets = currentWickets;
+                    cache.overs = currentOvers;
+                }
 
                 // Collect player IDs
                 batsmen.forEach((b: any) => {
                     if (b.id) allPlayerIds.push(b.id);
+                    // Cache highest individual scores
+                    if (b.id && (!cache.batsmen[b.id] || b.runs >= cache.batsmen[b.id].runs)) {
+                        cache.batsmen[b.id] = {
+                            runs: b.runs || 0,
+                            balls: b.balls || 0,
+                            fours: b.fours || 0,
+                            sixes: b.sixes || 0
+                        };
+                    }
                 });
                 bowlers.forEach((b: any) => {
                     if (b.id) allPlayerIds.push(b.id);
                 });
 
-                // Check for milestones (50 and 100)
+                // Check for milestones (50 and 100) - include all players with 50+ runs
                 batsmen.forEach((bat: any) => {
                     const playerId = bat.id;
                     const currentRuns = bat.runs || 0;
-                    const previousRuns = playerScores[playerId] || 0;
 
-                    // Check for 50 milestone
-                    if (currentRuns >= 50 && previousRuns < 50) {
-                        const milestoneData = {
-                            type: 'milestone',
-                            milestone: 50,
-                            matchId,
-                            player: {
-                                id: playerId,
-                                name: bat.name,
-                                runs: currentRuns,
-                                balls: bat.balls,
-                                fours: bat.fours,
-                                sixes: bat.sixes,
-                                strikeRate: bat.strkrate,
-                                imageUrl: playerImages[playerId] || null
-                            },
-                            team: inning.batteamsname || inning.batteamname,
-                            timestamp: new Date().toISOString()
-                        };
-                        milestones.push(milestoneData);
-
-                        // Save milestone event to database
-                        supabase.from('events').insert({
-                            match_id: matchId,
-                            event_type: 'MILESTONE',
-                            payload: milestoneData
-                        }).then(({ error }) => {
-                            if (error) console.error('Error saving milestone:', error.message);
-                        });
-                    }
-
-                    // Check for 100 milestone
-                    if (currentRuns >= 100 && previousRuns < 100) {
+                    // Add milestone for players with 100+ runs (century)
+                    if (currentRuns >= 100) {
                         const milestoneData = {
                             type: 'milestone',
                             milestone: 100,
@@ -318,41 +351,60 @@ export async function GET(request: NextRequest) {
                             timestamp: new Date().toISOString()
                         };
                         milestones.push(milestoneData);
-
-                        // Save milestone event to database
-                        supabase.from('events').insert({
-                            match_id: matchId,
-                            event_type: 'MILESTONE',
-                            payload: milestoneData
-                        }).then(({ error }) => {
-                            if (error) console.error('Error saving milestone:', error.message);
-                        });
                     }
-
-                    // Update stored score
-                    playerScores[playerId] = currentRuns;
+                    // Add milestone for players with 50-99 runs (half-century)
+                    else if (currentRuns >= 50) {
+                        const milestoneData = {
+                            type: 'milestone',
+                            milestone: 50,
+                            matchId,
+                            player: {
+                                id: playerId,
+                                name: bat.name,
+                                runs: currentRuns,
+                                balls: bat.balls,
+                                fours: bat.fours,
+                                sixes: bat.sixes,
+                                strikeRate: bat.strkrate,
+                                imageUrl: playerImages[playerId] || null
+                            },
+                            team: inning.batteamsname || inning.batteamname,
+                            timestamp: new Date().toISOString()
+                        };
+                        milestones.push(milestoneData);
+                    }
                 });
 
+                // Use cached (highest) values to prevent score going backwards
                 return {
                     team: inning.batteamsname || inning.batteamname,
-                    score: inning.score,
-                    wickets: inning.wickets,
-                    overs: inning.overs,
+                    score: cache.score,
+                    wickets: cache.wickets,
+                    overs: cache.overs,
                     runRate: inning.runrate,
                     topBatsmen: batsmen
-                        .sort((a: any, b: any) => (b.runs || 0) - (a.runs || 0))
+                        .sort((a: any, b: any) => {
+                            // Use cached runs for sorting
+                            const aRuns = cache.batsmen[a.id]?.runs || a.runs || 0;
+                            const bRuns = cache.batsmen[b.id]?.runs || b.runs || 0;
+                            return bRuns - aRuns;
+                        })
                         .slice(0, 3)
-                        .map((b: any) => ({
-                            id: b.id,
-                            name: b.name,
-                            runs: b.runs,
-                            balls: b.balls,
-                            fours: b.fours,
-                            sixes: b.sixes,
-                            strikeRate: b.strkrate,
-                            isOut: !!b.outdec,
-                            imageUrl: playerImages[b.id] || null
-                        })),
+                        .map((b: any) => {
+                            // Use cached values if higher
+                            const cachedBat = cache.batsmen[b.id];
+                            return {
+                                id: b.id,
+                                name: b.name,
+                                runs: cachedBat?.runs ?? b.runs,
+                                balls: cachedBat?.balls ?? b.balls,
+                                fours: cachedBat?.fours ?? b.fours,
+                                sixes: cachedBat?.sixes ?? b.sixes,
+                                strikeRate: b.strkrate,
+                                isOut: !!b.outdec,
+                                imageUrl: playerImages[b.id] || null
+                            };
+                        }),
                     topBowlers: bowlers
                         .sort((a: any, b: any) => (b.wickets || 0) - (a.wickets || 0))
                         .slice(0, 2)
@@ -377,8 +429,9 @@ export async function GET(request: NextRequest) {
                 timestamp: new Date().toISOString()
             });
 
-            // Remove from cache if match is complete
+            // Track completed matches
             if (isComplete) {
+                completedMatchIds.add(matchId);
                 cachedMatchIds = cachedMatchIds.filter(id => id !== matchId);
             }
         }
@@ -417,11 +470,16 @@ export async function GET(request: NextRequest) {
     // Add milestones to logs
     milestones.forEach(m => logs.push(m));
 
+    // Check if all tracked matches are complete
+    const allMatchesComplete = cachedMatchIds.length === 0 && completedMatchIds.size > 0;
+
     return NextResponse.json({
         logs,
         matchCount: cachedMatchIds.length,
         milestones,
         cachedImages: Object.keys(playerImages).length,
-        imagesFetchedThisPoll: imagesFetched
+        imagesFetchedThisPoll: imagesFetched,
+        completedMatchIds: Array.from(completedMatchIds),
+        allMatchesComplete
     });
 }

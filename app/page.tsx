@@ -1,325 +1,640 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
-interface LogEntry {
-    id: string;
-    type: string;
-    timestamp: string;
-    endpoint?: string;
-    description?: string;
-    success?: boolean;
-    duration?: number;
-    status?: number;
-    message?: string;
-    count?: number;
-    matches?: any[];
-    matchId?: number;
-    scores?: any[];
-    isComplete?: boolean;
-    // Milestone fields
-    milestone?: number;
-    player?: {
-        id: number;
-        name: string;
-        runs: number;
-        balls: number;
-        fours: number;
-        sixes: number;
-        strikeRate: string;
-        imageUrl: string | null;
-    };
-    team?: string;
+// Format timestamp to readable date
+const formatDate = (timestamp: string | number | undefined): string => {
+    if (!timestamp) return '';
+    const date = new Date(Number(timestamp));
+    return date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+    });
+};
+
+const formatDateShort = (timestamp: string | number | undefined): string => {
+    if (!timestamp) return '';
+    const date = new Date(Number(timestamp));
+    return date.toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'short'
+    });
+};
+
+interface Player {
+    id: number;
+    name: string;
+    runs: number;
+    balls: number;
+    fours: number;
+    sixes: number;
+    strikeRate: string;
+    isOut?: boolean;
+    imageUrl: string | null;
+    overs?: number;
+    wickets?: number;
+    economy?: string;
 }
 
-export default function Home() {
-    const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [isPolling, setIsPolling] = useState(true);
-    const [pollCount, setPollCount] = useState(0);
-    const [countdown, setCountdown] = useState(20);
-    const logsEndRef = useRef<HTMLDivElement>(null);
+interface InningsScore {
+    team: string;
+    score: number;
+    wickets: number;
+    overs: number;
+    runRate: string;
+    topBatsmen: Player[];
+    topBowlers: Player[];
+}
 
-    // Fetch scores
+interface Match {
+    matchId: number;
+    desc: string;
+    team1: string;
+    team1Logo: string | null;
+    team2: string;
+    team2Logo: string | null;
+    state: string;
+    status?: string;
+    scores?: InningsScore[];
+    startDate?: string;
+    endDate?: string;
+    venueInfo?: string;
+    seriesName?: string;
+    matchFormat?: string;
+    category?: string;
+}
+
+interface Milestone {
+    milestone: number;
+    matchId: number;
+    player: Player;
+    team: string;
+    timestamp: string;
+}
+
+type TabType = 'score' | 'milestones' | 'images';
+
+export default function Home() {
+    const [matches, setMatches] = useState<Match[]>([]);
+    const [milestonesByMatch, setMilestonesByMatch] = useState<Record<number, Milestone[]>>({});
+    const [selectedMatch, setSelectedMatch] = useState<number | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [lastUpdate, setLastUpdate] = useState<string>('');
+    const [isPolling, setIsPolling] = useState(true);
+    const [matchComplete, setMatchComplete] = useState(false);
+    const [activeTab, setActiveTab] = useState<TabType>('score');
+
     const fetchScores = async () => {
         try {
             const response = await fetch('/api/poll-scores');
             const data = await response.json();
 
-            if (data.logs && data.logs.length > 0) {
-                const newLogs = data.logs.map((log: any, index: number) => ({
-                    ...log,
-                    id: `${Date.now()}-${index}-${Math.random()}`
-                }));
-                setLogs(prev => [...prev.slice(-50), ...newLogs]);
-                setPollCount(prev => prev + 1);
+            if (data.logs) {
+                const matchesFound = data.logs.find((log: any) => log.type === 'matches_found');
+                const scoreUpdates = data.logs.filter((log: any) => log.type === 'score_update');
+                const newMilestones = data.logs.filter((log: any) => log.type === 'milestone');
+
+                if (matchesFound?.matches) {
+                    const updatedMatches = matchesFound.matches.map((match: any) => {
+                        const scoreUpdate = scoreUpdates.find((s: any) => s.matchId === match.matchId);
+                        return {
+                            ...match,
+                            status: scoreUpdate?.status,
+                            scores: scoreUpdate?.scores
+                        };
+                    });
+                    setMatches(updatedMatches);
+
+                    if (selectedMatch === null && updatedMatches.length > 0) {
+                        setSelectedMatch(updatedMatches[0].matchId);
+                    }
+                }
+
+                if (newMilestones.length > 0) {
+                    setMilestonesByMatch(prev => {
+                        const updated = { ...prev };
+                        newMilestones.forEach((m: Milestone) => {
+                            const matchId = m.matchId;
+                            if (!updated[matchId]) {
+                                updated[matchId] = [];
+                            }
+                            // Check if milestone already exists for this player
+                            const exists = updated[matchId].some(
+                                existing => existing.player?.id === m.player?.id && existing.milestone === m.milestone
+                            );
+                            if (!exists) {
+                                updated[matchId] = [m, ...updated[matchId]].slice(0, 10);
+                            }
+                        });
+                        return updated;
+                    });
+                }
+
+                if (data.allMatchesComplete) {
+                    setMatchComplete(true);
+                    setIsPolling(false);
+                }
+
+                setLastUpdate(new Date().toLocaleTimeString());
             }
+            setIsLoading(false);
         } catch (error) {
             console.error('Error fetching scores:', error);
-            setLogs(prev => [...prev, {
-                id: `${Date.now()}-error`,
-                type: 'error',
-                message: 'Failed to fetch scores',
-                timestamp: new Date().toISOString()
-            }]);
+            setIsLoading(false);
         }
     };
 
-    // Polling effect
     useEffect(() => {
         if (!isPolling) return;
 
-        // Fetch immediately on mount
         fetchScores();
-
-        // Set up interval for polling every 20 seconds
-        const pollInterval = setInterval(() => {
-            fetchScores();
-            setCountdown(20);
-        }, 20000);
-
-        // Countdown timer
-        const countdownInterval = setInterval(() => {
-            setCountdown(prev => (prev > 0 ? prev - 1 : 20));
-        }, 1000);
-
-        return () => {
-            clearInterval(pollInterval);
-            clearInterval(countdownInterval);
-        };
+        const interval = setInterval(fetchScores, 15000);
+        return () => clearInterval(interval);
     }, [isPolling]);
 
-    // Auto-scroll
-    useEffect(() => {
-        logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [logs]);
+    const selectedMatchData = matches.find(m => m.matchId === selectedMatch);
 
-    const getLogColor = (type: string, success?: boolean, milestone?: number) => {
-        switch (type) {
-            case 'api_call_start':
-                return 'bg-blue-900/30 border-blue-500';
-            case 'api_call_end':
-                return success ? 'bg-green-900/30 border-green-500' : 'bg-red-900/30 border-red-500';
-            case 'matches_found':
-                return 'bg-purple-900/30 border-purple-500';
-            case 'score_update':
-                return 'bg-yellow-900/30 border-yellow-500';
-            case 'milestone':
-                return milestone === 100 ? 'bg-orange-900/50 border-orange-400' : 'bg-pink-900/50 border-pink-400';
-            case 'error':
-                return 'bg-red-900/30 border-red-500';
-            default:
-                return 'bg-gray-800/30 border-gray-500';
-        }
-    };
-
-    const getStatusBadge = (status?: number) => {
-        if (!status) return null;
-        const color = status >= 200 && status < 300 ? 'bg-green-600' : 'bg-red-600';
-        return <span className={`${color} px-2 py-0.5 rounded text-xs font-mono`}>{status}</span>;
-    };
-
-    const formatTime = (timestamp: string) => {
-        return new Date(timestamp).toLocaleTimeString();
-    };
-
-    return (
-        <div className="min-h-screen bg-gray-950 text-white p-4">
-            {/* Header */}
-            <div className="max-w-6xl mx-auto mb-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-white">Cricket API Monitor</h1>
-                        <p className="text-gray-400 text-sm">Live API calls every 20 seconds (International matches only)</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${isPolling ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                            <span className="text-sm">
-                                {isPolling ? `Next poll in ${countdown}s` : 'Stopped'}
-                            </span>
-                        </div>
-                        <div className="text-sm text-gray-400">
-                            Polls: {pollCount}
-                        </div>
-                        <button
-                            onClick={() => setIsPolling(!isPolling)}
-                            className={`px-3 py-1 rounded text-sm ${isPolling ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
-                        >
-                            {isPolling ? 'Stop' : 'Start'}
-                        </button>
-                        <button
-                            onClick={() => setLogs([])}
-                            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm"
-                        >
-                            Clear
-                        </button>
-                    </div>
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-700 text-xl">Loading Live Matches...</p>
                 </div>
             </div>
+        );
+    }
 
-            {/* Logs Table */}
-            <div className="max-w-6xl mx-auto bg-gray-900 rounded-lg border border-gray-800 overflow-hidden">
-                {/* Table Header */}
-                <div className="grid grid-cols-12 gap-2 p-3 bg-gray-800 border-b border-gray-700 text-sm font-semibold text-gray-300">
-                    <div className="col-span-1">Time</div>
-                    <div className="col-span-2">Type</div>
-                    <div className="col-span-3">Endpoint</div>
-                    <div className="col-span-1">Status</div>
-                    <div className="col-span-1">Duration</div>
-                    <div className="col-span-4">Details</div>
-                </div>
-
-                {/* Log Entries */}
-                <div className="max-h-[70vh] overflow-y-auto">
-                    {logs.length === 0 ? (
-                        <div className="p-8 text-center text-gray-500">
-                            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                            Loading API calls...
+    return (
+        <div className="min-h-screen bg-gray-50">
+            {/* Header */}
+            <header className="bg-green-700 shadow-lg">
+                <div className="max-w-7xl mx-auto px-4 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+                                <span className="text-green-700 font-bold text-xl">🏏</span>
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-white">Cricket Live</h1>
+                                <p className="text-green-200 text-sm">Real-time scores & updates</p>
+                            </div>
                         </div>
-                    ) : (
-                        logs.map((log) => (
-                            <div
-                                key={log.id}
-                                className={`grid grid-cols-12 gap-2 p-3 border-l-4 border-b border-gray-800 ${getLogColor(log.type, log.success, log.milestone)} transition-all duration-300`}
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                    matchComplete ? 'bg-white' : isPolling ? 'bg-green-300 animate-pulse' : 'bg-red-400'
+                                }`}></div>
+                                <span className="text-green-100 text-sm">
+                                    {matchComplete ? `Match Complete • ${lastUpdate}` : isPolling ? `Live • Updated ${lastUpdate}` : 'Paused'}
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    if (matchComplete) {
+                                        setMatchComplete(false);
+                                    }
+                                    setIsPolling(!isPolling);
+                                }}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                                    matchComplete
+                                        ? 'bg-white text-green-700 hover:bg-green-50'
+                                        : isPolling
+                                            ? 'bg-red-500 text-white hover:bg-red-600'
+                                            : 'bg-white text-green-700 hover:bg-green-50'
+                                }`}
                             >
-                                <div className="col-span-1 text-xs font-mono text-gray-400">
-                                    {formatTime(log.timestamp)}
-                                </div>
-                                <div className="col-span-2">
-                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                        log.type === 'api_call_start' ? 'bg-blue-600' :
-                                        log.type === 'api_call_end' ? (log.success ? 'bg-green-600' : 'bg-red-600') :
-                                        log.type === 'matches_found' ? 'bg-purple-600' :
-                                        log.type === 'score_update' ? 'bg-yellow-600' :
-                                        log.type === 'milestone' ? (log.milestone === 100 ? 'bg-orange-500' : 'bg-pink-500') :
-                                        'bg-gray-600'
-                                    }`}>
-                                        {log.type === 'milestone' ? `${log.milestone} RUNS!` : log.type.replace(/_/g, ' ').toUpperCase()}
-                                    </span>
-                                </div>
-                                <div className="col-span-3 font-mono text-sm text-gray-300 truncate">
-                                    {log.endpoint || '-'}
-                                </div>
-                                <div className="col-span-1">
-                                    {getStatusBadge(log.status)}
-                                </div>
-                                <div className="col-span-1 text-sm text-gray-400">
-                                    {log.duration ? `${log.duration}ms` : '-'}
-                                </div>
-                                <div className="col-span-4 text-sm">
-                                    {log.type === 'api_call_start' && (
-                                        <span className="text-blue-400">{log.description}</span>
-                                    )}
-                                    {log.type === 'api_call_end' && (
-                                        <span className={log.success ? 'text-green-400' : 'text-red-400'}>
-                                            {log.success ? 'Success' : 'Failed'}
-                                        </span>
-                                    )}
-                                    {log.type === 'matches_found' && (
-                                        <div>
-                                            <span className="text-purple-400">Found {log.count} match(es)</span>
-                                            {log.matches && log.matches.length > 0 && (
-                                                <div className="mt-1 text-xs text-gray-400">
-                                                    {log.matches.map((m: any, i: number) => (
-                                                        <div key={i}>{m.team1} vs {m.team2} ({m.desc})</div>
-                                                    ))}
-                                                </div>
+                                {matchComplete ? 'Match Ended' : isPolling ? 'Pause' : 'Resume'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div className="max-w-7xl mx-auto px-4 py-6">
+                {matches.length === 0 ? (
+                    <div className="text-center py-20 bg-white rounded-2xl shadow">
+                        <div className="text-6xl mb-4">🏏</div>
+                        <h2 className="text-2xl font-bold text-gray-800 mb-2">No Live Matches</h2>
+                        <p className="text-gray-500">Check back later for live cricket action!</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        {/* Match Tabs - Left Sidebar */}
+                        <div className="lg:col-span-1">
+                            <h2 className="text-lg font-semibold text-gray-800 mb-3">Live Matches ({matches.length})</h2>
+                            <div className="space-y-2">
+                                {matches.map((match) => (
+                                    <button
+                                        key={match.matchId}
+                                        onClick={() => setSelectedMatch(match.matchId)}
+                                        className={`w-full text-left p-4 rounded-xl transition-all ${
+                                            selectedMatch === match.matchId
+                                                ? 'bg-green-600 text-white shadow-lg'
+                                                : 'bg-white border border-gray-200 hover:border-green-400 hover:shadow'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                {match.category && (
+                                                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                                        selectedMatch === match.matchId
+                                                            ? 'bg-white/20 text-white'
+                                                            : match.category === 'International'
+                                                                ? 'bg-green-100 text-green-700'
+                                                                : 'bg-orange-100 text-orange-700'
+                                                    }`}>
+                                                        {match.category}
+                                                    </span>
+                                                )}
+                                                <span className={`text-xs ${selectedMatch === match.matchId ? 'text-green-100' : 'text-gray-500'}`}>
+                                                    {match.desc}
+                                                </span>
+                                            </div>
+                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                                selectedMatch === match.matchId
+                                                    ? 'bg-white text-green-700'
+                                                    : matchComplete
+                                                        ? 'bg-gray-200 text-gray-600'
+                                                        : match.state === 'In Progress' || match.state === 'Live'
+                                                            ? 'bg-green-100 text-green-700'
+                                                            : 'bg-yellow-100 text-yellow-700'
+                                            }`}>
+                                                {matchComplete ? 'COMPLETED' : match.state === 'In Progress' ? 'LIVE' : match.state}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {match.team1Logo && (
+                                                <img src={match.team1Logo} alt="" className="w-6 h-6 rounded"
+                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}/>
+                                            )}
+                                            <span className="font-medium">{match.team1}</span>
+                                            <span className={selectedMatch === match.matchId ? 'text-green-200' : 'text-gray-400'}>vs</span>
+                                            <span className="font-medium">{match.team2}</span>
+                                            {match.team2Logo && (
+                                                <img src={match.team2Logo} alt="" className="w-6 h-6 rounded"
+                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}/>
                                             )}
                                         </div>
-                                    )}
-                                    {log.type === 'score_update' && log.scores && (
-                                        <div className="space-y-2">
-                                            <div className="text-yellow-400 text-xs font-medium">{log.status}</div>
-                                            {log.scores.map((s: any, i: number) => (
-                                                <div key={i} className="text-xs border-l-2 border-gray-700 pl-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-bold text-white">{s.team}:</span>
-                                                        <span className="text-green-400 font-bold">{s.score}/{s.wickets}</span>
-                                                        <span className="text-gray-400">({s.overs} ov, RR: {s.runRate})</span>
+                                        {match.startDate && (
+                                            <div className={`mt-1 text-xs ${selectedMatch === match.matchId ? 'text-green-200' : 'text-gray-500'}`}>
+                                                {formatDateShort(match.startDate)}{match.endDate && match.endDate !== match.startDate ? ` - ${formatDateShort(match.endDate)}` : ''}
+                                            </div>
+                                        )}
+                                        {match.scores && match.scores[0] && (
+                                            <div className={`mt-2 text-sm font-mono font-semibold ${
+                                                selectedMatch === match.matchId ? 'text-white' : 'text-green-600'
+                                            }`}>
+                                                {match.scores[0].score}/{match.scores[0].wickets} ({match.scores[0].overs} ov)
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Scorecard - Main Content */}
+                        <div className="lg:col-span-3">
+                            {selectedMatchData ? (
+                                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                                    {/* Match Header */}
+                                    <div className="bg-gradient-to-r from-green-600 to-green-700 p-6">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h2 className="text-2xl font-bold text-white">
+                                                    {selectedMatchData.team1} vs {selectedMatchData.team2}
+                                                </h2>
+                                                <p className="text-green-200">{selectedMatchData.desc}</p>
+                                                <div className="flex items-center gap-3 mt-2 text-sm text-green-100">
+                                                    {selectedMatchData.startDate && (
+                                                        <span className="flex items-center gap-1">
+                                                            📅 {formatDate(selectedMatchData.startDate)}
+                                                            {selectedMatchData.endDate && selectedMatchData.endDate !== selectedMatchData.startDate && ` - ${formatDate(selectedMatchData.endDate)}`}
+                                                        </span>
+                                                    )}
+                                                    {selectedMatchData.venueInfo && (
+                                                        <span className="flex items-center gap-1">
+                                                            📍 {selectedMatchData.venueInfo}
+                                                        </span>
+                                                    )}
+                                                    {selectedMatchData.matchFormat && (
+                                                        <span className="px-2 py-0.5 bg-white/20 text-white rounded text-xs">
+                                                            {selectedMatchData.matchFormat}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex flex-col items-end gap-2">
+                                                {selectedMatchData.category && (
+                                                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-white/20 text-white">
+                                                        {selectedMatchData.category}
+                                                    </span>
+                                                )}
+                                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                    matchComplete
+                                                        ? 'bg-gray-200 text-gray-700'
+                                                        : (selectedMatchData.state === 'In Progress' || selectedMatchData.state === 'Live')
+                                                            ? 'bg-white text-green-700'
+                                                            : 'bg-yellow-400 text-yellow-900'
+                                                }`}>
+                                                    {matchComplete ? 'COMPLETED' : selectedMatchData.state === 'In Progress' ? 'LIVE' : selectedMatchData.state}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {selectedMatchData.status && (
+                                            <p className="mt-3 text-yellow-300 font-medium">{selectedMatchData.status}</p>
+                                        )}
+
+                                        {/* Tabs */}
+                                        <div className="flex gap-2 mt-4">
+                                            <button
+                                                onClick={() => setActiveTab('score')}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                                                    activeTab === 'score'
+                                                        ? 'bg-white text-green-700'
+                                                        : 'bg-white/20 text-white hover:bg-white/30'
+                                                }`}
+                                            >
+                                                Scorecard
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('milestones')}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                                                    activeTab === 'milestones'
+                                                        ? 'bg-white text-green-700'
+                                                        : 'bg-white/20 text-white hover:bg-white/30'
+                                                }`}
+                                            >
+                                                Milestones ({milestonesByMatch[selectedMatchData.matchId]?.length || 0})
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('images')}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                                                    activeTab === 'images'
+                                                        ? 'bg-white text-green-700'
+                                                        : 'bg-white/20 text-white hover:bg-white/30'
+                                                }`}
+                                            >
+                                                Images
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Tab Content */}
+                                    {activeTab === 'score' && (
+                                    <>
+                                    {/* Innings Scores */}
+                                    {selectedMatchData.scores && selectedMatchData.scores.length > 0 ? (
+                                        <div className="divide-y divide-gray-100">
+                                            {selectedMatchData.scores.map((innings, idx) => (
+                                                <div key={idx} className="p-6">
+                                                    {/* Team Score */}
+                                                    <div className="flex items-center justify-between mb-6">
+                                                        <div>
+                                                            <h3 className="text-xl font-bold text-gray-800">{innings.team}</h3>
+                                                            <p className="text-gray-500 text-sm">Innings {idx + 1}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-4xl font-bold text-green-700">
+                                                                {innings.score}<span className="text-gray-400">/{innings.wickets}</span>
+                                                            </div>
+                                                            <p className="text-gray-500">
+                                                                {innings.overs} overs • RR: {innings.runRate}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    {s.topBatsmen && s.topBatsmen.length > 0 && (
-                                                        <div className="flex flex-wrap gap-2 mt-1">
-                                                            {s.topBatsmen.map((bat: any, bi: number) => (
-                                                                <div key={bi} className="flex items-center gap-1 bg-gray-800/50 px-2 py-0.5 rounded">
-                                                                    {bat.imageUrl && (
-                                                                        <img
-                                                                            src={bat.imageUrl}
-                                                                            alt={bat.name}
-                                                                            className="w-5 h-5 rounded-full object-cover"
-                                                                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                                                                        />
-                                                                    )}
-                                                                    <span className={bat.isOut ? 'text-gray-400' : 'text-cyan-400'}>
-                                                                        {bat.name}{bat.isOut ? '' : '*'}: {bat.runs}({bat.balls})
-                                                                    </span>
-                                                                </div>
-                                                            ))}
+
+                                                    {/* Batsmen Table */}
+                                                    {innings.topBatsmen && innings.topBatsmen.length > 0 && (
+                                                        <div className="mb-6">
+                                                            <h4 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">
+                                                                Batting
+                                                            </h4>
+                                                            <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
+                                                                <table className="w-full">
+                                                                    <thead>
+                                                                        <tr className="text-xs text-gray-500 border-b border-gray-200 bg-gray-100">
+                                                                            <th className="text-left py-3 px-4">Batter</th>
+                                                                            <th className="text-center py-3 px-2">R</th>
+                                                                            <th className="text-center py-3 px-2">B</th>
+                                                                            <th className="text-center py-3 px-2">4s</th>
+                                                                            <th className="text-center py-3 px-2">6s</th>
+                                                                            <th className="text-center py-3 px-2">SR</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {innings.topBatsmen.map((bat, i) => {
+                                                                            const isMilestone = bat.runs >= 50;
+                                                                            const isCentury = bat.runs >= 100;
+                                                                            return (
+                                                                                <tr
+                                                                                    key={i}
+                                                                                    className={`border-b border-gray-100 ${
+                                                                                        isCentury
+                                                                                            ? 'bg-gradient-to-r from-yellow-100 to-transparent'
+                                                                                            : isMilestone
+                                                                                                ? 'bg-gradient-to-r from-green-100 to-transparent'
+                                                                                                : 'bg-white'
+                                                                                    }`}
+                                                                                >
+                                                                                    <td className="py-3 px-4">
+                                                                                        <div className="flex items-center gap-3">
+                                                                                            {bat.imageUrl && (
+                                                                                                <img
+                                                                                                    src={bat.imageUrl}
+                                                                                                    alt={bat.name}
+                                                                                                    className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                                                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                                                                                />
+                                                                                            )}
+                                                                                            <div>
+                                                                                                <span className={`font-medium ${bat.isOut ? 'text-gray-400' : 'text-gray-800'}`}>
+                                                                                                    {bat.name}
+                                                                                                    {!bat.isOut && <span className="text-green-600">*</span>}
+                                                                                                </span>
+                                                                                                {isCentury && (
+                                                                                                    <span className="ml-2 text-xs bg-yellow-500 text-white px-1.5 py-0.5 rounded">
+                                                                                                        💯
+                                                                                                    </span>
+                                                                                                )}
+                                                                                                {isMilestone && !isCentury && (
+                                                                                                    <span className="ml-2 text-xs bg-green-600 text-white px-1.5 py-0.5 rounded">
+                                                                                                        50+
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td className={`text-center py-3 px-2 font-bold ${
+                                                                                        isCentury ? 'text-yellow-600' : isMilestone ? 'text-green-600' : 'text-gray-800'
+                                                                                    }`}>
+                                                                                        {bat.runs}
+                                                                                    </td>
+                                                                                    <td className="text-center py-3 px-2 text-gray-500">{bat.balls}</td>
+                                                                                    <td className="text-center py-3 px-2 text-green-600">{bat.fours}</td>
+                                                                                    <td className="text-center py-3 px-2 text-green-700">{bat.sixes}</td>
+                                                                                    <td className="text-center py-3 px-2 text-gray-600">{bat.strikeRate}</td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Bowlers Table */}
+                                                    {innings.topBowlers && innings.topBowlers.length > 0 && (
+                                                        <div>
+                                                            <h4 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">
+                                                                Bowling
+                                                            </h4>
+                                                            <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
+                                                                <table className="w-full">
+                                                                    <thead>
+                                                                        <tr className="text-xs text-gray-500 border-b border-gray-200 bg-gray-100">
+                                                                            <th className="text-left py-3 px-4">Bowler</th>
+                                                                            <th className="text-center py-3 px-2">O</th>
+                                                                            <th className="text-center py-3 px-2">R</th>
+                                                                            <th className="text-center py-3 px-2">W</th>
+                                                                            <th className="text-center py-3 px-2">Econ</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {innings.topBowlers.map((bowl, i) => (
+                                                                            <tr key={i} className="border-b border-gray-100 bg-white">
+                                                                                <td className="py-3 px-4">
+                                                                                    <div className="flex items-center gap-3">
+                                                                                        {bowl.imageUrl && (
+                                                                                            <img
+                                                                                                src={bowl.imageUrl}
+                                                                                                alt={bowl.name}
+                                                                                                className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                                                                                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                                                                            />
+                                                                                        )}
+                                                                                        <span className="text-gray-800 font-medium">{bowl.name}</span>
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="text-center py-3 px-2 text-gray-600">{bowl.overs}</td>
+                                                                                <td className="text-center py-3 px-2 text-gray-600">{bowl.runs}</td>
+                                                                                <td className="text-center py-3 px-2 text-green-600 font-bold">{bowl.wickets}</td>
+                                                                                <td className="text-center py-3 px-2 text-gray-500">{bowl.economy}</td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
                                             ))}
-                                            {log.isComplete && <span className="text-green-400 font-bold">MATCH COMPLETE</span>}
+                                        </div>
+                                    ) : (
+                                        <div className="p-12 text-center">
+                                            <div className="text-4xl mb-4">⏳</div>
+                                            <p className="text-gray-500">Waiting for scorecard data...</p>
                                         </div>
                                     )}
-                                    {log.type === 'error' && (
-                                        <span className="text-red-400">{log.message}</span>
+                                    </>
                                     )}
-                                    {log.type === 'milestone' && log.player && (
-                                        <div className="flex items-center gap-3">
-                                            {log.player.imageUrl && (
-                                                <img
-                                                    src={log.player.imageUrl}
-                                                    alt={log.player.name}
-                                                    className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400"
-                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                                                />
+
+                                    {/* Milestones Tab */}
+                                    {activeTab === 'milestones' && (
+                                        <div className="p-6">
+                                            {milestonesByMatch[selectedMatchData.matchId]?.length > 0 ? (
+                                                <div className="space-y-4">
+                                                    {milestonesByMatch[selectedMatchData.matchId].map((m, i) => (
+                                                        <div
+                                                            key={`${m.player?.id}-${m.milestone}-${i}`}
+                                                            className={`flex items-center gap-4 p-4 rounded-xl ${
+                                                                m.milestone === 100
+                                                                    ? 'bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-300'
+                                                                    : 'bg-gradient-to-r from-green-100 to-emerald-100 border border-green-300'
+                                                            }`}
+                                                        >
+                                                            {m.player?.imageUrl && (
+                                                                <img
+                                                                    src={m.player.imageUrl}
+                                                                    alt={m.player?.name}
+                                                                    className={`w-16 h-16 rounded-full object-cover border-3 ${
+                                                                        m.milestone === 100 ? 'border-yellow-500' : 'border-green-500'
+                                                                    }`}
+                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                                                />
+                                                            )}
+                                                            <div className="flex-1">
+                                                                <div className={`font-bold text-xl ${m.milestone === 100 ? 'text-orange-700' : 'text-green-700'}`}>
+                                                                    {m.player?.name}
+                                                                    <span className={`ml-3 px-3 py-1 rounded text-sm ${
+                                                                        m.milestone === 100 ? 'bg-yellow-500 text-white' : 'bg-green-600 text-white'
+                                                                    }`}>
+                                                                        {m.milestone === 100 ? '💯 Century!' : '50+ Runs'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-gray-600 mt-1">
+                                                                    {m.player?.runs} runs off {m.player?.balls} balls
+                                                                </div>
+                                                                <div className="text-sm text-gray-500 mt-1">
+                                                                    {m.player?.fours} fours • {m.player?.sixes} sixes • SR: {m.player?.strikeRate}
+                                                                </div>
+                                                                <div className="text-xs text-gray-400 mt-1">{m.team}</div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-12">
+                                                    <div className="text-4xl mb-4">🎯</div>
+                                                    <p className="text-gray-500">No milestones yet in this match</p>
+                                                </div>
                                             )}
-                                            <div>
-                                                <div className={`font-bold ${log.milestone === 100 ? 'text-orange-400' : 'text-pink-400'}`}>
-                                                    {log.player.name} - {log.milestone}!
-                                                </div>
-                                                <div className="text-xs text-gray-300">
-                                                    {log.player.runs} runs off {log.player.balls} balls
-                                                    ({log.player.fours}x4, {log.player.sixes}x6) SR: {log.player.strikeRate}
-                                                </div>
-                                                <div className="text-xs text-gray-500">{log.team}</div>
+                                        </div>
+                                    )}
+
+                                    {/* Images Tab */}
+                                    {activeTab === 'images' && (
+                                        <div className="p-6">
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                {selectedMatchData.scores?.flatMap(innings =>
+                                                    [...innings.topBatsmen, ...innings.topBowlers]
+                                                ).filter(player => player.imageUrl).map((player, i) => (
+                                                    <div key={`player-img-${player.id}-${i}`} className="bg-gray-50 rounded-xl p-4 text-center border border-gray-100">
+                                                        <img
+                                                            src={player.imageUrl!}
+                                                            alt={player.name}
+                                                            className="w-24 h-24 rounded-full object-cover mx-auto border-2 border-green-500"
+                                                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                                        />
+                                                        <p className="mt-2 font-medium text-gray-800">{player.name}</p>
+                                                        <p className="text-sm text-gray-500">
+                                                            {player.runs !== undefined ? `${player.runs} runs` : `${player.wickets} wickets`}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                                {(!selectedMatchData.scores || selectedMatchData.scores.flatMap(innings =>
+                                                    [...innings.topBatsmen, ...innings.topBowlers]
+                                                ).filter(player => player.imageUrl).length === 0) && (
+                                                    <div className="col-span-full text-center py-12">
+                                                        <div className="text-4xl mb-4">📷</div>
+                                                        <p className="text-gray-500">No player images available</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}
                                 </div>
-                            </div>
-                        ))
-                    )}
-                    <div ref={logsEndRef} />
-                </div>
-            </div>
-
-            {/* Legend */}
-            <div className="max-w-6xl mx-auto mt-4 flex flex-wrap gap-4 text-sm text-gray-400">
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-blue-600 rounded"></div>
-                    <span>API Call</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-600 rounded"></div>
-                    <span>Success</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-purple-600 rounded"></div>
-                    <span>Matches</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-yellow-600 rounded"></div>
-                    <span>Score</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-pink-500 rounded"></div>
-                    <span>50 Runs</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-orange-500 rounded"></div>
-                    <span>100 Runs</span>
-                </div>
+                            ) : (
+                                <div className="bg-white rounded-2xl shadow p-12 text-center">
+                                    <div className="text-4xl mb-4">👈</div>
+                                    <p className="text-gray-500">Select a match to view scorecard</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
