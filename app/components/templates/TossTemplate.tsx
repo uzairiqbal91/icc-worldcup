@@ -4,67 +4,69 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface TossTemplateProps {
-    backgroundImage?: string; // Toss moment photo from API
     team1Logo?: string;
     team2Logo?: string;
+    playerImage?: string;
+    /** Toss winning team (dynamic) */
     tossWinner: string;
-    tossDecision: string; // 'Batting' or 'Bowling'
+    /** Toss decision: 'bat' or 'bowl' (dynamic) */
+    tossDecision: string;
 }
 
 export default function TossTemplate({
-    backgroundImage,
     team1Logo,
     team2Logo,
+    playerImage,
     tossWinner,
     tossDecision
 }: TossTemplateProps) {
     const decisionText = tossDecision.toLowerCase().includes('bat')
-        ? 'ELECTED TO BAT FIRST'
-        : 'ELECTED TO BOWL FIRST';
+        ? 'elected to bat first'
+        : 'elected to bowl first';
 
     return (
         <BaseTemplate
-            backgroundImage={backgroundImage}
+            templateLayer="/assets/templates/toss-layer.png"
+            templateLayerStyle={{ left: -570, top: 0, width: 2069, height: 1361 }}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
+            playerImage={playerImage}
+            showVsSection={false}
+            mycoVariant="white"
         >
-            {/* Content positioned at bottom */}
-            <div className="absolute bottom-0 left-0 right-0 px-16 pb-44">
-                {/* TOSS UPDATE Title */}
-                <h1
-                    className="text-white font-black uppercase"
-                    style={{
-                        fontSize: 95,
-                        fontFamily: 'Arial Black, sans-serif',
-                        textShadow: '4px 4px 8px rgba(0,0,0,0.5)',
-                        marginBottom: 25,
-                        letterSpacing: 2
-                    }}
-                >
-                    TOSS UPDATE
-                </h1>
+            {/* TOSS UPDATE Title */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 210.54, top: 966.3,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 700,
+                    fontSize: 100,
+                    lineHeight: '100px',
+                    color: '#ffffff',
+                    letterSpacing: -3.61,
+                }}
+            >
+                Toss Update
+            </p>
 
-                {/* Toss Result */}
-                <p
-                    className="uppercase"
-                    style={{
-                        fontSize: 38,
-                        fontFamily: 'Arial, sans-serif',
-                        fontWeight: 600,
-                        lineHeight: 1.5
-                    }}
-                >
-                    <span style={{ color: '#FFE135' }}>{tossWinner}</span>
-                    <span className="text-white"> WON THE TOSS</span>
+            {/* Toss result text */}
+            <div
+                className="absolute text-center uppercase"
+                style={{
+                    left: '50%', top: 1083.74,
+                    transform: 'translateX(-50%)',
+                    whiteSpace: 'nowrap',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 36,
+                    letterSpacing: 0.06,
+                }}
+            >
+                <p style={{ margin: 0, lineHeight: '43.2px' }}>
+                    <span style={{ fontWeight: 700, color: '#ffdc29' }}>{tossWinner}</span>
+                    <span style={{ fontWeight: 400, color: '#ffdc29' }}> won the toss</span>
                 </p>
-                <p
-                    className="uppercase text-white"
-                    style={{
-                        fontSize: 38,
-                        fontFamily: 'Arial, sans-serif',
-                        fontWeight: 600
-                    }}
-                >
+                <p style={{ margin: 0, fontWeight: 400, color: '#ffdc29', lineHeight: '43.2px' }}>
                     & {decisionText}
                 </p>
             </div>

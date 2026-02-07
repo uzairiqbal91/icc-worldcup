@@ -12,22 +12,29 @@ interface PlayerStats {
 }
 
 interface InningsEndTemplateProps {
-    backgroundImage?: string; // Celebration/fielding photo from API
     team1Logo?: string;
     team2Logo?: string;
+    playerImage?: string;
+    /** Batting team name (dynamic) */
     battingTeam: string;
+    /** Total score (dynamic) */
     score: number;
+    /** Wickets fallen (dynamic) */
     wickets: number;
+    /** Overs bowled (dynamic) */
     overs: number;
-    inningsNumber: number; // 1 or 2
+    /** Innings number 1 or 2 (dynamic) */
+    inningsNumber: number;
+    /** Top batsmen stats (dynamic) */
     topBatsmen?: PlayerStats[];
+    /** Top bowlers stats (dynamic) */
     topBowlers?: PlayerStats[];
 }
 
 export default function InningsEndTemplate({
-    backgroundImage,
     team1Logo,
     team2Logo,
+    playerImage,
     battingTeam,
     score,
     wickets,
@@ -36,111 +43,130 @@ export default function InningsEndTemplate({
     topBatsmen = [],
     topBowlers = []
 }: InningsEndTemplateProps) {
-    const inningsText = inningsNumber === 1 ? '1ST' : '2ND';
+    const inningsText = inningsNumber === 1 ? '1st Innings' : '2nd Innings';
+
+    const formatPerformers = () => {
+        const performers: React.ReactNode[] = [];
+        topBatsmen.slice(0, 2).forEach((bat, i) => {
+            const parts = bat.name.split(' ');
+            const firstName = parts[0];
+            const lastName = parts.slice(1).join(' ');
+            performers.push(
+                <span key={`bat-${i}`}>
+                    <span style={{ fontWeight: 500 }}>{firstName} </span>
+                    <span style={{ fontWeight: 700 }}>{lastName}</span>
+                    <span style={{ fontWeight: 700 }}>{' '}{bat.runs}</span>
+                    {bat.balls && <span style={{ fontWeight: 500 }}> ({bat.balls})</span>}
+                    {'   '}
+                </span>
+            );
+        });
+        topBowlers.slice(0, 2).forEach((bowl, i) => {
+            const parts = bowl.name.split(' ');
+            const firstName = parts[0];
+            const lastName = parts.slice(1).join(' ');
+            performers.push(
+                <span key={`bowl-${i}`}>
+                    <span style={{ fontWeight: 500 }}>{firstName} </span>
+                    <span style={{ fontWeight: 700 }}>{lastName}</span>
+                    <span style={{ fontWeight: 700 }}>{' '}{bowl.wickets}-{bowl.runsGiven}</span>
+                    {'   '}
+                </span>
+            );
+        });
+        return performers;
+    };
 
     return (
         <BaseTemplate
-            backgroundImage={backgroundImage}
+            templateLayer="/assets/templates/innings-end-layer.png"
+            templateLayerStyle={{ left: -530, top: 0, width: 2048, height: 1359 }}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
+            playerImage={playerImage}
+            mycoVariant="white"
         >
-            {/* Content positioned at bottom */}
-            <div className="absolute bottom-0 left-0 right-0 px-16 pb-44">
-                {/* END OF */}
-                <p
-                    className="uppercase font-bold"
-                    style={{
-                        fontSize: 36,
-                        fontFamily: 'Arial, sans-serif',
-                        color: '#FFE135',
-                        marginBottom: -5
-                    }}
-                >
-                    END OF
-                </p>
+            {/* End of */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 465.23, top: 812.43,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500,
+                    fontSize: 30,
+                    lineHeight: '30px',
+                    color: '#d40000',
+                    letterSpacing: 6,
+                }}
+            >
+                End of
+            </p>
 
-                {/* 1ST INNINGS Title */}
-                <h1
-                    className="text-white font-black uppercase"
-                    style={{
-                        fontSize: 105,
-                        fontFamily: 'Arial Black, sans-serif',
-                        textShadow: '4px 4px 8px rgba(0,0,0,0.5)',
-                        marginBottom: 10,
-                        letterSpacing: 2
-                    }}
-                >
-                    {inningsText} INNINGS
-                </h1>
+            {/* 1st Innings */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 238.6, top: 836.76,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 700,
+                    fontSize: 100,
+                    lineHeight: '100px',
+                    color: '#ffffff',
+                    letterSpacing: -1.86,
+                }}
+            >
+                {inningsText}
+            </p>
 
-                {/* Team Name */}
-                <p
-                    className="uppercase font-bold"
-                    style={{
-                        fontSize: 52,
-                        fontFamily: 'Arial, sans-serif',
-                        color: '#FFE135',
-                        marginBottom: 10
-                    }}
-                >
+            {/* Team name and Score */}
+            <div
+                className="absolute text-center uppercase"
+                style={{
+                    left: '50%', top: 943.48,
+                    transform: 'translateX(-50%)',
+                    whiteSpace: 'nowrap',
+                }}
+            >
+                <p style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 700,
+                    fontSize: 48,
+                    lineHeight: '55px',
+                    color: '#ffdc29',
+                    letterSpacing: 0.59,
+                }}>
                     {battingTeam}
                 </p>
-
-                {/* Score */}
-                <p
-                    className="text-white uppercase font-bold"
-                    style={{
-                        fontSize: 58,
-                        fontFamily: 'Arial, sans-serif',
-                        letterSpacing: 5,
-                        marginBottom: 25
-                    }}
-                >
-                    {score}/{wickets.toString().padStart(2, '0')}  {overs} OVERS
+                <p style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500,
+                    fontSize: 48,
+                    lineHeight: '55px',
+                    color: '#ffffff',
+                    letterSpacing: 1.78,
+                }}>
+                    {score}/{wickets.toString().padStart(2, '0')}{'  '}{overs} Overs
                 </p>
+            </div>
 
-                {/* Top Performers */}
+            {/* Top Performers */}
+            {(topBatsmen.length > 0 || topBowlers.length > 0) && (
                 <div
-                    className="text-white uppercase"
+                    className="absolute uppercase"
                     style={{
+                        left: 176.71, top: 1075.32,
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 500,
                         fontSize: 24,
-                        fontFamily: 'Arial, sans-serif',
-                        lineHeight: 1.8
+                        lineHeight: '28px',
+                        color: '#ffffff',
+                        letterSpacing: 2.08,
+                        whiteSpace: 'nowrap',
                     }}
                 >
-                    <div className="flex flex-wrap gap-x-10 gap-y-1">
-                        {topBatsmen.slice(0, 2).map((batsman, i) => {
-                            const nameParts = batsman.name.split(' ');
-                            const firstName = nameParts[0];
-                            const lastName = nameParts.slice(1).join(' ');
-                            return (
-                                <span key={`bat-${i}`}>
-                                    <span className="font-normal text-gray-300">{firstName}</span>
-                                    {' '}
-                                    <span className="font-bold">{lastName}</span>
-                                    {' '}
-                                    <span className="font-bold">{batsman.runs}</span>
-                                    {batsman.balls && <span className="font-normal text-gray-300"> ({batsman.balls})</span>}
-                                </span>
-                            );
-                        })}
-                        {topBowlers.slice(0, 2).map((bowler, i) => {
-                            const nameParts = bowler.name.split(' ');
-                            const firstName = nameParts[0];
-                            const lastName = nameParts.slice(1).join(' ');
-                            return (
-                                <span key={`bowl-${i}`}>
-                                    <span className="font-normal text-gray-300">{firstName}</span>
-                                    {' '}
-                                    <span className="font-bold">{lastName}</span>
-                                    {' '}
-                                    <span className="font-bold">{bowler.wickets}-{bowler.runsGiven}</span>
-                                </span>
-                            );
-                        })}
-                    </div>
+                    {formatPerformers()}
                 </div>
-            </div>
+            )}
         </BaseTemplate>
     );
 }

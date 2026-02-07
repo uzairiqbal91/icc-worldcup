@@ -4,57 +4,62 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface TargetTemplateProps {
-    backgroundImage?: string; // Player/team photo from API
     team1Logo?: string;
     team2Logo?: string;
+    playerImage?: string;
+    /** Team that needs to chase (dynamic) */
     chasingTeam: string;
+    /** Target runs (dynamic) */
     target: number;
 }
 
 export default function TargetTemplate({
-    backgroundImage,
     team1Logo,
     team2Logo,
+    playerImage,
     chasingTeam,
     target
 }: TargetTemplateProps) {
     return (
         <BaseTemplate
-            backgroundImage={backgroundImage}
+            templateLayer="/assets/templates/target-layer.png"
+            templateLayerStyle={{ left: -410, top: 0, width: 2024, height: 1350 }}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
+            playerImage={playerImage}
+            mycoVariant="white"
         >
-            {/* Content positioned at bottom */}
-            <div className="absolute bottom-0 left-0 right-0 px-16 pb-44">
-                {/* TARGET Title */}
-                <h1
-                    className="text-white font-black uppercase"
-                    style={{
-                        fontSize: 130,
-                        fontFamily: 'Arial Black, sans-serif',
-                        textShadow: '4px 4px 8px rgba(0,0,0,0.5)',
-                        marginBottom: 25,
-                        letterSpacing: 4
-                    }}
-                >
-                    TARGET
-                </h1>
+            {/* TARGET Title */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 349.35, top: 986.76,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 700,
+                    fontSize: 100,
+                    lineHeight: '100px',
+                    color: '#ffffff',
+                    letterSpacing: -4.1,
+                }}
+            >
+                target
+            </p>
 
-                {/* Target Details */}
-                <p
-                    className="uppercase"
-                    style={{
-                        fontSize: 40,
-                        fontFamily: 'Arial, sans-serif',
-                        fontWeight: 600
-                    }}
-                >
-                    <span style={{ color: '#FFE135' }}>{chasingTeam}</span>
-                    <span className="text-white"> NEED </span>
-                    <span style={{ color: '#FFE135' }}>{target}</span>
-                    <span className="text-white"> RUNS TO WIN</span>
-                </p>
-            </div>
+            {/* Chasing team need X runs to win */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 239.85, top: 1096.3,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500,
+                    fontSize: 36,
+                    lineHeight: '36px',
+                    color: '#ffdc29',
+                    letterSpacing: 0.6,
+                }}
+            >
+                {chasingTeam} need {target} runs to win
+            </p>
         </BaseTemplate>
     );
 }

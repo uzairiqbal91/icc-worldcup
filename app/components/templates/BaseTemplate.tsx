@@ -4,144 +4,192 @@ import React from 'react';
 
 interface BaseTemplateProps {
     children: React.ReactNode;
-    backgroundImage?: string; // Dynamic background from API/database
+    /** The unique template-specific background layer image */
+    templateLayer: string;
+    templateLayerStyle: React.CSSProperties;
+    /** Optional second template-specific layer */
+    templateLayer2?: string;
+    templateLayer2Style?: React.CSSProperties;
+    /** Optional third template-specific layer */
+    templateLayer3?: string;
+    templateLayer3Style?: React.CSSProperties;
+    /** Team 1 logo URL (dynamic) */
     team1Logo?: string;
+    /** Team 2 logo URL (dynamic) */
     team2Logo?: string;
-    showTeamLogos?: boolean;
-    showMycoLogo?: boolean;
-    showIccLogo?: boolean;
+    /** Main player/captain image URL (dynamic) */
+    playerImage?: string;
+    /** Player image position/size style */
+    playerImageStyle?: React.CSSProperties;
+    /** Whether to show VS section with team logos at bottom */
+    showVsSection?: boolean;
+    /** VS section positioning variant */
+    vsStyle?: 'bottom-center' | 'bottom-large';
+    /** Which myco logo variant to use */
+    mycoVariant?: 'white' | 'color' | 'color-white';
+    /** ICC logo position style override */
+    iccStyle?: React.CSSProperties;
 }
 
 export default function BaseTemplate({
     children,
-    backgroundImage,
+    templateLayer,
+    templateLayerStyle,
+    templateLayer2,
+    templateLayer2Style,
+    templateLayer3,
+    templateLayer3Style,
     team1Logo,
     team2Logo,
-    showTeamLogos = true,
-    showMycoLogo = true,
-    showIccLogo = true
+    playerImage,
+    playerImageStyle,
+    showVsSection = true,
+    vsStyle = 'bottom-center',
+    mycoVariant = 'white',
+    iccStyle,
 }: BaseTemplateProps) {
+    const mycoSrc = mycoVariant === 'color'
+        ? '/assets/templates/myco-color.png'
+        : mycoVariant === 'color-white'
+            ? '/assets/templates/myco-color-white.png'
+            : '/assets/templates/myco-white.png';
+
     return (
         <div
             className="relative overflow-hidden"
-            style={{
-                width: '1080px',
-                height: '1350px',
-                backgroundColor: '#1a365d'
-            }}
+            style={{ width: 1080, height: 1350, backgroundColor: '#ffffff' }}
         >
-            {/* Background Image - Dynamic from API */}
-            {backgroundImage && (
-                <div className="absolute inset-0">
+            {/* Background - common across all templates */}
+            <div className="absolute" style={{ left: 0, top: 0, width: 1080, height: 1350 }}>
+                <img src="/assets/templates/bg-common.png" alt="" className="absolute inset-0 w-full h-full object-contain" />
+            </div>
+
+            {/* Template-specific main layer */}
+            <div className="absolute" style={templateLayerStyle}>
+                <img src={templateLayer} alt="" className="absolute inset-0 w-full h-full object-contain" />
+            </div>
+
+            {/* Optional template-specific layer 2 */}
+            {templateLayer2 && templateLayer2Style && (
+                <div className="absolute" style={templateLayer2Style}>
+                    <img src={templateLayer2} alt="" className="absolute inset-0 w-full h-full object-contain" />
+                </div>
+            )}
+
+            {/* Optional template-specific layer 3 */}
+            {templateLayer3 && templateLayer3Style && (
+                <div className="absolute" style={templateLayer3Style}>
+                    <img src={templateLayer3} alt="" className="absolute inset-0 w-full h-full object-contain" />
+                </div>
+            )}
+
+            {/* Layer 2 - Gradient overlay */}
+            <div className="absolute" style={{ left: 0, top: 299, width: 1080, height: 1051 }}>
+                <img src="/assets/templates/layer2-gradient.png" alt="" className="absolute inset-0 w-full h-full object-contain" />
+            </div>
+
+            {/* Dynamic player/main image — rendered ABOVE gradient */}
+            {playerImage && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        zIndex: 10,
+                        background: 'rgba(255,0,0,0.15)',
+                        ...(playerImageStyle || { left: 250, top: 50, width: 580, height: 800 }),
+                    }}
+                >
                     <img
-                        src={backgroundImage}
-                        alt=""
-                        className="w-full h-full object-cover"
+                        src={playerImage}
+                        alt="Player"
                         crossOrigin="anonymous"
+                        width={580}
+                        height={800}
+                        style={{
+                            display: 'block',
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain',
+                            objectPosition: 'bottom',
+                        }}
+                        onError={(e) => {
+                            console.error('Player image failed to load:', playerImage);
+                            (e.target as HTMLImageElement).alt = 'FAILED: ' + playerImage;
+                        }}
                     />
                 </div>
             )}
 
-            {/* Gradient Overlay for text readability */}
-            <div
-                className="absolute inset-0"
-                style={{
-                    background: 'linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.1) 30%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0.95) 100%)'
-                }}
-            />
+            {/* Layer 4 - Decorative bottom right */}
+            <div className="absolute" style={{ left: 720, top: 946, width: 878, height: 804 }}>
+                <img src="/assets/templates/layer4-decorative-br.png" alt="" className="absolute inset-0 w-full h-full object-contain" />
+            </div>
+
+            {/* ICC Logo - Top Right */}
+            <div className="absolute" style={iccStyle || { left: 911, top: 45, width: 124, height: 111 }}>
+                <img src="/assets/templates/icc-logo.png" alt="ICC" className="absolute inset-0 w-full h-full object-contain" />
+            </div>
 
             {/* MYCO Logo - Top Left */}
-            {showMycoLogo && (
-                <div
-                    className="absolute z-20 flex items-center"
-                    style={{ left: 40, top: 35 }}
-                >
-                    <span
-                        className="font-black italic text-white"
-                        style={{
-                            fontSize: 52,
-                            fontFamily: 'Arial Black, sans-serif',
-                            letterSpacing: -2
-                        }}
-                    >
-                        myco
-                    </span>
-                </div>
-            )}
-
-            {/* ICC World Cup Logo - Top Right */}
-            {showIccLogo && (
-                <div
-                    className="absolute z-20"
-                    style={{ right: 40, top: 30, width: 100, height: 90 }}
-                >
-                    <div className="text-right">
-                        <div className="text-white text-xs font-bold" style={{ fontSize: 10 }}>ICC</div>
-                        <div className="text-white text-xs" style={{ fontSize: 8 }}>U19 MEN'S CRICKET</div>
-                        <div className="text-white font-bold" style={{ fontSize: 14 }}>WORLD CUP</div>
-                        <div className="text-yellow-400 text-xs" style={{ fontSize: 8 }}>ZIMBABWE & NAMIBIA 2026</div>
-                    </div>
-                </div>
-            )}
-
-            {/* Yellow/Green Decorative Triangle - Bottom Right */}
-            <div className="absolute z-10" style={{ right: -50, bottom: 60 }}>
-                <svg width="350" height="350" viewBox="0 0 350 350">
-                    <defs>
-                        <linearGradient id="triGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#FFE135" />
-                            <stop offset="50%" stopColor="#4CAF50" />
-                            <stop offset="100%" stopColor="#1B5E20" />
-                        </linearGradient>
-                    </defs>
-                    <polygon
-                        points="350,0 350,350 0,350"
-                        fill="url(#triGradient)"
-                    />
-                </svg>
+            <div className="absolute" style={{ left: 38, top: 56, width: 215, height: 89 }}>
+                <img src={mycoSrc} alt="MYCO" className="absolute inset-0 w-full h-full object-contain" />
             </div>
 
-            {/* Content */}
-            <div className="relative z-10 h-full">
-                {children}
-            </div>
+            {/* Dynamic content */}
+            {children}
 
-            {/* Team Logos with VS - Bottom Center */}
-            {showTeamLogos && team1Logo && team2Logo && (
-                <div
-                    className="absolute z-20 flex items-center justify-center gap-6"
-                    style={{ bottom: 50, left: '50%', transform: 'translateX(-50%)' }}
-                >
-                    <div
-                        className="rounded-lg overflow-hidden bg-white/10 p-2"
-                        style={{ width: 70, height: 70 }}
-                    >
-                        <img
-                            src={team1Logo}
-                            alt="Team 1"
-                            className="w-full h-full object-contain"
-                            crossOrigin="anonymous"
-                        />
-                    </div>
-                    <span
-                        className="text-white font-bold"
-                        style={{ fontSize: 24 }}
-                    >
-                        VS
-                    </span>
-                    <div
-                        className="rounded-lg overflow-hidden bg-white/10 p-2"
-                        style={{ width: 70, height: 70 }}
-                    >
-                        <img
-                            src={team2Logo}
-                            alt="Team 2"
-                            className="w-full h-full object-contain"
-                            crossOrigin="anonymous"
-                        />
-                    </div>
+            {/* VS Section with team logos */}
+            {showVsSection && team1Logo && team2Logo && (
+                <div className="absolute" style={{ left: 0, top: 0, width: '0.01px', height: '0.01px' }}>
+                    {vsStyle === 'bottom-large' ? (
+                        <>
+                            <div className="absolute" style={{ left: 416, top: 1157, width: 86, height: 88 }}>
+                                <img src={team1Logo} alt="Team 1" className="absolute inset-0 w-full h-full object-contain" />
+                            </div>
+                            <p
+                                className="absolute uppercase"
+                                style={{
+                                    left: 523.83, top: 1189.45,
+                                    fontFamily: "'Inter', sans-serif",
+                                    fontWeight: 500, fontSize: 24,
+                                    lineHeight: '24px', color: '#ffffff',
+                                    letterSpacing: -0.75
+                                }}
+                            >
+                                vs
+                            </p>
+                            <div className="absolute" style={{ left: 574, top: 1154, width: 90, height: 94 }}>
+                                <img src={team2Logo} alt="Team 2" className="absolute inset-0 w-full h-full object-contain" />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="absolute" style={{ left: 440, top: 1214, width: 70, height: 72 }}>
+                                <img src={team1Logo} alt="Team 1" className="absolute inset-0 w-full h-full object-contain" />
+                            </div>
+                            <p
+                                className="absolute uppercase"
+                                style={{
+                                    left: 526.96, top: 1240.66,
+                                    fontFamily: "'Inter', sans-serif",
+                                    fontWeight: 500, fontSize: 19.4,
+                                    lineHeight: '19.4px', color: '#ffffff',
+                                    letterSpacing: -0.6
+                                }}
+                            >
+                                vs
+                            </p>
+                            <div className="absolute" style={{ left: 567, top: 1212, width: 73, height: 76 }}>
+                                <img src={team2Logo} alt="Team 2" className="absolute inset-0 w-full h-full object-contain" />
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
+
+            {/* Layer 5 - Decorative bottom left */}
+            <div className="absolute" style={{ left: -367, top: 1137, width: 580, height: 500 }}>
+                <img src="/assets/templates/layer5-decorative-bl.png" alt="" className="absolute inset-0 w-full h-full object-contain" />
+            </div>
         </div>
     );
 }

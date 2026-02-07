@@ -4,116 +4,108 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface MilestoneTemplateProps {
-    backgroundImage?: string; // Player celebration photo from API
-    playerImage?: string; // Player face/action image from API
     team1Logo?: string;
     team2Logo?: string;
-    playerName: string;
-    teamName: string;
-    milestone: number; // 50 or 100
-    runs: number;
-    balls: number;
-    fours: number;
-    sixes: number;
-    strikeRate: string;
+    playerImage?: string;
+    /** Player first name (dynamic) */
+    playerFirstName: string;
+    /** Player last name (dynamic) */
+    playerLastName: string;
+    /** Milestone: 50 or 100 (dynamic) */
+    milestone: number;
 }
 
 export default function MilestoneTemplate({
-    backgroundImage,
-    playerImage,
     team1Logo,
     team2Logo,
-    playerName,
-    teamName,
-    milestone,
-    runs,
-    balls,
-    fours,
-    sixes,
-    strikeRate
+    playerImage,
+    playerFirstName,
+    playerLastName,
+    milestone
 }: MilestoneTemplateProps) {
-    const isCentury = milestone >= 100;
-    const milestoneText = isCentury ? 'CENTURY!' : 'FIFTY!';
-
     return (
         <BaseTemplate
-            backgroundImage={backgroundImage || playerImage}
+            templateLayer="/assets/templates/milestone-layer.png"
+            templateLayerStyle={{ left: -484, top: 0, width: 2048, height: 1405 }}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
+            playerImage={playerImage}
+            playerImageStyle={{ left: 50, top: 150, width: 500, height: 650 }}
+            showVsSection={false}
+            mycoVariant="white"
         >
-            {/* Content positioned at bottom */}
-            <div className="absolute bottom-0 left-0 right-0 px-16 pb-44">
-                {/* Milestone Badge */}
-                <div
-                    className="inline-block px-8 py-3 rounded-full mb-6"
-                    style={{
-                        background: isCentury
-                            ? 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)'
-                            : 'linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)',
-                    }}
-                >
-                    <span
-                        className="font-black uppercase"
-                        style={{
-                            fontSize: 36,
-                            fontFamily: 'Arial Black, sans-serif',
-                            color: isCentury ? '#000' : '#fff'
-                        }}
-                    >
-                        {milestone}* {milestoneText}
-                    </span>
-                </div>
+            {/* Milestone number (50 or 100) */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 285.28, top: 636,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 700,
+                    fontSize: 311.42,
+                    lineHeight: '311.42px',
+                    color: '#ffffff',
+                    letterSpacing: -31.02,
+                }}
+            >
+                {milestone}
+            </p>
 
-                {/* Player Name */}
-                <h1
-                    className="text-white font-black uppercase"
-                    style={{
-                        fontSize: 80,
-                        fontFamily: 'Arial Black, sans-serif',
-                        textShadow: '4px 4px 8px rgba(0,0,0,0.5)',
-                        marginBottom: 5,
-                        letterSpacing: 2
-                    }}
-                >
-                    {playerName}
-                </h1>
+            {/* RUNS */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 471.44, top: 937.48,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 400,
+                    fontSize: 48,
+                    lineHeight: '48px',
+                    color: '#ffffff',
+                    letterSpacing: 0.38,
+                }}
+            >
+                runs
+            </p>
 
-                {/* Team Name */}
-                <p
-                    className="uppercase font-bold"
-                    style={{
-                        fontSize: 36,
-                        fontFamily: 'Arial, sans-serif',
-                        color: '#FFE135',
-                        marginBottom: 30
-                    }}
-                >
-                    {teamName}
-                </p>
+            {/* Divider line */}
+            <div className="absolute" style={{ left: 271, top: 1022, width: 538, height: 1 }}>
+                <img src="/assets/templates/line-divider.svg" alt="" className="w-full" />
+            </div>
 
-                {/* Stats Row */}
-                <div className="flex gap-16">
-                    <div className="text-center">
-                        <p className="text-white font-black" style={{ fontSize: 60 }}>{runs}*</p>
-                        <p className="text-gray-400 uppercase" style={{ fontSize: 18 }}>RUNS</p>
-                    </div>
-                    <div className="text-center">
-                        <p className="text-white font-black" style={{ fontSize: 60 }}>{balls}</p>
-                        <p className="text-gray-400 uppercase" style={{ fontSize: 18 }}>BALLS</p>
-                    </div>
-                    <div className="text-center">
-                        <p className="text-white font-black" style={{ fontSize: 60 }}>{fours}</p>
-                        <p className="text-gray-400 uppercase" style={{ fontSize: 18 }}>FOURS</p>
-                    </div>
-                    <div className="text-center">
-                        <p className="text-white font-black" style={{ fontSize: 60 }}>{sixes}</p>
-                        <p className="text-gray-400 uppercase" style={{ fontSize: 18 }}>SIXES</p>
-                    </div>
-                    <div className="text-center">
-                        <p className="text-white font-black" style={{ fontSize: 60 }}>{strikeRate}</p>
-                        <p className="text-gray-400 uppercase" style={{ fontSize: 18 }}>S/R</p>
-                    </div>
-                </div>
+            {/* Player first name */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 478.4, top: 1070.43,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 400,
+                    fontSize: 30,
+                    lineHeight: '30px',
+                    color: '#ffffff',
+                    letterSpacing: 6,
+                }}
+            >
+                {playerFirstName}
+            </p>
+
+            {/* Player last name */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 406.95, top: 1102.04,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 700,
+                    fontSize: 48,
+                    lineHeight: '48px',
+                    color: '#ffdc29',
+                    letterSpacing: 9.6,
+                }}
+            >
+                {playerLastName}
+            </p>
+
+            {/* Tournament logo */}
+            <div className="absolute" style={{ left: 502, top: 1179, width: 76, height: 89 }}>
+                <img src="/assets/templates/milestone-layer10.png" alt="" className="absolute inset-0 w-full h-full object-contain" />
             </div>
         </BaseTemplate>
     );

@@ -10,94 +10,102 @@ interface Player {
 }
 
 interface PlayingXITemplateProps {
-    backgroundImage?: string; // Player batting/action photo from API
     team1Logo?: string;
     team2Logo?: string;
+    playerImage?: string;
+    /** Team name (dynamic) */
     teamName: string;
+    /** Opponent name (dynamic) */
     opponent: string;
+    /** List of 11 players (dynamic) */
     players: Player[];
 }
 
 export default function PlayingXITemplate({
-    backgroundImage,
     team1Logo,
     team2Logo,
+    playerImage,
     teamName,
     opponent,
     players
 }: PlayingXITemplateProps) {
-    const formatPlayerName = (player: Player) => {
-        const parts = player.name.split(' ');
-        const firstName = parts[0];
-        const lastName = parts.slice(1).join(' ') || '';
-        let suffix = '';
-        if (player.isCaptain && player.isWicketkeeper) suffix = '  (C & WK)';
-        else if (player.isCaptain) suffix = '  (C)';
-        else if (player.isWicketkeeper) suffix = '  (WK)';
-        return { firstName, lastName, suffix };
-    };
-
     return (
         <BaseTemplate
-            backgroundImage={backgroundImage}
+            templateLayer="/assets/templates/playing-xi-layer13.png"
+            templateLayerStyle={{ left: -120, top: 0, width: 2107, height: 1353 }}
+            templateLayer2="/assets/templates/playing-xi-layer2.png"
+            templateLayer2Style={{ left: 0, top: 0, width: 1316, height: 1352 }}
+            templateLayer3="/assets/templates/playing-xi-layer14.png"
+            templateLayer3Style={{ left: 511, top: 105, width: 569, height: 1180 }}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
-            showTeamLogos={false}
+            playerImage={playerImage}
+            playerImageStyle={{ left: 540, top: 150, width: 540, height: 700 }}
+            showVsSection={false}
+            mycoVariant="color-white"
         >
-            {/* Content - Left aligned */}
-            <div className="absolute left-16 top-44">
-                {/* PLAYING XI Title */}
-                <h1
-                    className="text-white font-black uppercase"
-                    style={{
-                        fontSize: 90,
-                        fontFamily: 'Arial Black, sans-serif',
-                        textShadow: '4px 4px 8px rgba(0,0,0,0.5)',
-                        marginBottom: 0,
-                        letterSpacing: 2
-                    }}
-                >
-                    PLAYING XI
-                </h1>
+            {/* Playing XI Title */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 31.52, top: 263.86,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 700,
+                    fontSize: 80,
+                    lineHeight: '80px',
+                    color: '#ffffff',
+                    letterSpacing: -0.63,
+                }}
+            >
+                Playing XI
+            </p>
 
-                {/* VS Opponent */}
-                <p
-                    className="uppercase font-bold"
-                    style={{
-                        fontSize: 32,
-                        fontFamily: 'Arial, sans-serif',
-                        color: '#FFE135',
-                        marginBottom: 35
-                    }}
-                >
-                    VS {opponent}
-                </p>
+            {/* VS Opponent */}
+            <p
+                className="absolute uppercase"
+                style={{
+                    left: 35.45, top: 341.87,
+                    fontFamily: "'Inter', sans-serif",
+                    fontWeight: 400,
+                    fontSize: 30,
+                    lineHeight: '30px',
+                    color: '#ffdc29',
+                    letterSpacing: 0.76,
+                }}
+            >
+                vs {opponent}
+            </p>
 
-                {/* Player List */}
-                <div style={{ lineHeight: 2.2 }}>
-                    {players.slice(0, 11).map((player, i) => {
-                        const { firstName, lastName, suffix } = formatPlayerName(player);
-                        return (
-                            <p
-                                key={i}
-                                className="uppercase"
-                                style={{
-                                    fontSize: 30,
-                                    fontFamily: 'Arial, sans-serif'
-                                }}
-                            >
-                                <span className="text-gray-400 font-normal">{firstName}</span>
-                                {lastName && (
-                                    <>
-                                        {' '}
-                                        <span className="text-white font-bold">{lastName}</span>
-                                    </>
-                                )}
-                                {suffix && <span style={{ color: '#FFE135' }} className="font-bold">{suffix}</span>}
-                            </p>
-                        );
-                    })}
-                </div>
+            {/* Player List */}
+            <div
+                className="absolute uppercase"
+                style={{
+                    left: 38.99, top: 394.57,
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 30,
+                    lineHeight: '60px',
+                    color: '#ffffff',
+                    letterSpacing: -0.13,
+                    whiteSpace: 'nowrap',
+                }}
+            >
+                {players.slice(0, 11).map((player, i) => {
+                    const parts = player.name.split(' ');
+                    const firstName = parts[0];
+                    const lastName = parts.slice(1).join(' ') || '';
+                    let suffix = '';
+                    if (player.isCaptain && player.isWicketkeeper) suffix = '  (C & WK)';
+                    else if (player.isCaptain) suffix = '  (C)';
+                    else if (player.isWicketkeeper) suffix = '  (WK)';
+
+                    return (
+                        <p key={i} style={{ margin: 0 }}>
+                            <span style={{ fontWeight: 400 }}>{firstName} </span>
+                            <span style={{ fontWeight: 700 }}>{lastName}</span>
+                            {suffix && <span style={{ fontWeight: 700, color: '#ffdc29' }}>{suffix}</span>}
+                        </p>
+                    );
+                })}
             </div>
         </BaseTemplate>
     );
