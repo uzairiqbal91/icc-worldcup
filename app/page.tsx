@@ -150,6 +150,11 @@ export default function Home() {
                                            existing.player?.id === event.player?.id &&
                                            existing.milestone === event.milestone;
                                 }
+                                // For powerplay and innings_end, also check the team
+                                if (event.type === 'powerplay' || event.type === 'innings_end') {
+                                    return existing.type === event.type &&
+                                           existing.battingTeam === event.battingTeam;
+                                }
                                 return existing.type === event.type && existing.timestamp === event.timestamp;
                             });
                             if (!exists) {

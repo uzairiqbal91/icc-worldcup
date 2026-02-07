@@ -4,10 +4,32 @@ import { createClient } from '@supabase/supabase-js';
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY!;
 const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'cricbuzz-cricket.p.rapidapi.com';
 
+// Series ID to track - ICC Men's T20 World Cup 2026
+const TARGET_SERIES_ID = 11253;
+
 // Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Series schedule cache
+interface ScheduledMatch {
+    matchId: number;
+    seriesId: number;
+    matchDesc: string;
+    startDate: number;
+    endDate: number;
+    team1: { name: string; shortName: string; imageId: number };
+    team2: { name: string; shortName: string; imageId: number };
+    venue: string;
+    state: string;
+    status: string;
+}
+let seriesSchedule: ScheduledMatch[] = [];
+let lastScheduleFetch = 0;
+const SCHEDULE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const MATCH_BUFFER_BEFORE = 60 * 60 * 1000; // 1 hour before match start
+const MATCH_BUFFER_AFTER = 30 * 60 * 1000; // 30 minutes after scheduled end
 
 // Store match IDs and player data in memory
 let cachedMatchIds: number[] = [];
@@ -36,8 +58,12 @@ interface MatchEventsTracked {
     inningsEnd: boolean[]; // per innings
     targetSet: boolean;
     matchResult: boolean;
+    playerMilestones: Record<number, { fifty: boolean; hundred: boolean }>; // track per player
 }
 let matchEventsTracked: Record<number, MatchEventsTracked> = {};
+
+// Store all detected milestones per match (to return on every poll)
+let storedMilestones: Record<number, any[]> = {};
 
 // Helper to get full image URL from our proxy (for client-side usage)
 function getProxyImageUrl(imageId: number | string | undefined | null) {
@@ -70,6 +96,82 @@ async function callCricbuzzAPI(endpoint: string) {
     }
 }
 
+// Fetch series schedule and cache it
+async function fetchSeriesSchedule(): Promise<ScheduledMatch[]> {
+    const now = Date.now();
+
+    // Return cached schedule if still valid
+    if (seriesSchedule.length > 0 && (now - lastScheduleFetch) < SCHEDULE_CACHE_DURATION) {
+        return seriesSchedule;
+    }
+
+    const result = await callCricbuzzAPI(`/series/v1/${TARGET_SERIES_ID}`);
+
+    if (result.success && result.data?.matchDetails) {
+        const matches: ScheduledMatch[] = [];
+
+        result.data.matchDetails.forEach((dayData: any) => {
+            if (dayData.matchDetailsMap?.match) {
+                dayData.matchDetailsMap.match.forEach((matchData: any) => {
+                    const info = matchData.matchInfo;
+                    if (info && info.seriesId === TARGET_SERIES_ID) {
+                        matches.push({
+                            matchId: info.matchId,
+                            seriesId: info.seriesId,
+                            matchDesc: info.matchDesc,
+                            startDate: parseInt(info.startDate),
+                            endDate: parseInt(info.endDate),
+                            team1: {
+                                name: info.team1?.teamName,
+                                shortName: info.team1?.teamSName,
+                                imageId: info.team1?.imageId
+                            },
+                            team2: {
+                                name: info.team2?.teamName,
+                                shortName: info.team2?.teamSName,
+                                imageId: info.team2?.imageId
+                            },
+                            venue: info.venueInfo?.ground || '',
+                            state: info.state,
+                            status: info.status || ''
+                        });
+                    }
+                });
+            }
+        });
+
+        seriesSchedule = matches;
+        lastScheduleFetch = now;
+        console.log(`Fetched ${matches.length} matches for series ${TARGET_SERIES_ID}`);
+    }
+
+    return seriesSchedule;
+}
+
+// Get matches that should be polled right now (within time window)
+function getActiveMatches(schedule: ScheduledMatch[]): ScheduledMatch[] {
+    const now = Date.now();
+
+    return schedule.filter(match => {
+        // Skip completed matches
+        if (completedMatchIds.has(match.matchId)) {
+            return false;
+        }
+
+        // Check if match state indicates it's complete
+        if (match.state === 'Complete') {
+            completedMatchIds.add(match.matchId);
+            return false;
+        }
+
+        // Check if current time is within the match window
+        const matchStart = match.startDate - MATCH_BUFFER_BEFORE;
+        const matchEnd = match.endDate + MATCH_BUFFER_AFTER;
+
+        return now >= matchStart && now <= matchEnd;
+    });
+}
+
 // Fetch player info to get their image and save to database
 async function fetchPlayerImage(playerId: number): Promise<string | null> {
     // Check cache first
@@ -100,8 +202,7 @@ async function fetchPlayerImage(playerId: number): Promise<string | null> {
                 face_image_id: faceImageId || null,
                 face_image_url: fullImageUrl, // Store full URL with p=de&d=high format
                 batting_style: playerData.bat || null,
-                bowling_style: playerData.bowl || null,
-                updated_at: new Date().toISOString()
+                bowling_style: playerData.bowl || null
             };
 
             // Upsert player to database
@@ -181,86 +282,113 @@ export async function GET(request: NextRequest) {
     const milestones: any[] = [];
     const now = Date.now();
 
-    // Always fetch fresh matches (caching disabled for testing)
-    const shouldFetchMatches = true;
+    // Fetch series schedule
+    logs.push({
+        type: 'api_call_start',
+        endpoint: `/series/v1/${TARGET_SERIES_ID}`,
+        description: `Fetching schedule for ICC T20 World Cup 2026 (Series ${TARGET_SERIES_ID})`,
+        timestamp: new Date().toISOString()
+    });
 
-    // Note: playerScores persists to track milestones properly
+    const schedule = await fetchSeriesSchedule();
 
-    if (shouldFetchMatches) {
-        // Clear previous cache to get fresh data
+    logs.push({
+        type: 'api_call_end',
+        endpoint: `/series/v1/${TARGET_SERIES_ID}`,
+        success: schedule.length > 0,
+        duration: 0,
+        status: 200,
+        description: `Found ${schedule.length} total matches in series`,
+        timestamp: new Date().toISOString()
+    });
+
+    // Get matches that should be polled right now
+    const activeMatches = getActiveMatches(schedule);
+
+    // Log schedule info
+    logs.push({
+        type: 'schedule_info',
+        totalMatches: schedule.length,
+        activeMatches: activeMatches.length,
+        completedMatches: completedMatchIds.size,
+        upcomingToday: schedule.filter(m => {
+            const matchDate = new Date(m.startDate);
+            const today = new Date();
+            return matchDate.toDateString() === today.toDateString() && m.state !== 'Complete';
+        }).length,
+        timestamp: new Date().toISOString()
+    });
+
+    // If no active matches, return schedule info only
+    if (activeMatches.length === 0) {
+        // Find next upcoming match
+        const upcoming = schedule
+            .filter(m => m.startDate > now && !completedMatchIds.has(m.matchId))
+            .sort((a, b) => a.startDate - b.startDate)[0];
+
+        logs.push({
+            type: 'no_active_matches',
+            message: 'No matches currently in progress',
+            nextMatch: upcoming ? {
+                matchId: upcoming.matchId,
+                matchDesc: upcoming.matchDesc,
+                team1: upcoming.team1.shortName,
+                team2: upcoming.team2.shortName,
+                startDate: upcoming.startDate,
+                startsIn: Math.round((upcoming.startDate - now) / 60000) + ' minutes'
+            } : null,
+            timestamp: new Date().toISOString()
+        });
+
+        // Also add matches_found with full schedule for display
+        logs.push({
+            type: 'matches_found',
+            count: schedule.length,
+            matches: schedule.map(m => ({
+                matchId: m.matchId,
+                desc: m.matchDesc,
+                team1: m.team1.shortName,
+                team1Logo: getProxyImageUrl(m.team1.imageId),
+                team2: m.team2.shortName,
+                team2Logo: getProxyImageUrl(m.team2.imageId),
+                state: m.state,
+                status: m.status,
+                startDate: m.startDate,
+                endDate: m.endDate,
+                venueInfo: m.venue,
+                seriesName: 'ICC Men\'s T20 World Cup 2026',
+                matchFormat: 'T20',
+                category: 'International'
+            })),
+            timestamp: new Date().toISOString()
+        });
+
         cachedMatchIds = [];
+    } else {
+        // Log active matches
         logs.push({
-            type: 'api_call_start',
-            endpoint: '/matches/v1/live',
-            description: 'Fetching live matches (refreshing cache)',
+            type: 'matches_found',
+            count: activeMatches.length,
+            matches: activeMatches.map(m => ({
+                matchId: m.matchId,
+                desc: m.matchDesc,
+                team1: m.team1.shortName,
+                team1Logo: getProxyImageUrl(m.team1.imageId),
+                team2: m.team2.shortName,
+                team2Logo: getProxyImageUrl(m.team2.imageId),
+                state: m.state,
+                status: m.status,
+                startDate: m.startDate,
+                endDate: m.endDate,
+                venueInfo: m.venue,
+                seriesName: 'ICC Men\'s T20 World Cup 2026',
+                matchFormat: 'T20',
+                category: 'International'
+            })),
             timestamp: new Date().toISOString()
         });
 
-        const liveResult = await callCricbuzzAPI('/matches/v1/live');
-
-        logs.push({
-            type: 'api_call_end',
-            endpoint: '/matches/v1/live',
-            success: liveResult.success,
-            duration: liveResult.duration,
-            status: liveResult.status,
-            timestamp: new Date().toISOString()
-        });
-
-        if (liveResult.success && liveResult.data?.typeMatches) {
-            const internationalMatches: any[] = [];
-
-            // Get international + domestic matches
-            liveResult.data.typeMatches.forEach((type: any) => {
-                const matchType = type.matchType?.toLowerCase();
-                // Include both international and domestic matches
-                if (matchType === 'international' || matchType === 'domestic' || matchType === 'league') {
-                    const seriesMatches = type.seriesMatches || [];
-                    seriesMatches.forEach((series: any) => {
-                        if (series.seriesAdWrapper) {
-                            const matches = series.seriesAdWrapper.matches || [];
-                            matches.forEach((m: any) => {
-                                if (m.matchInfo) {
-                                    // Filter: Only show INDU19 vs ENGU19 for now
-                                    const team1 = m.matchInfo.team1?.teamSName;
-                                    const team2 = m.matchInfo.team2?.teamSName;
-                                    if ((team1 === 'INDU19' && team2 === 'ENGU19') || (team1 === 'ENGU19' && team2 === 'INDU19')) {
-                                        internationalMatches.push({
-                                            ...m.matchInfo,
-                                            category: type.matchType
-                                        });
-                                    }
-                                }
-                            });
-                        }
-                    });
-                }
-            });
-
-            logs.push({
-                type: 'matches_found',
-                count: internationalMatches.length,
-                matches: internationalMatches.map(m => ({
-                    matchId: m.matchId,
-                    desc: m.matchDesc,
-                    team1: m.team1?.teamSName,
-                    team1Logo: getProxyImageUrl(m.team1?.imageId),
-                    team2: m.team2?.teamSName,
-                    team2Logo: getProxyImageUrl(m.team2?.imageId),
-                    state: m.state,
-                    startDate: m.startDate,
-                    endDate: m.endDate,
-                    venueInfo: m.venueInfo?.ground,
-                    seriesName: m.seriesName,
-                    matchFormat: m.matchFormat,
-                    category: m.category
-                })),
-                timestamp: new Date().toISOString()
-            });
-
-            cachedMatchIds = internationalMatches.map(m => m.matchId);
-            lastMatchFetch = now;
-        }
+        cachedMatchIds = activeMatches.map(m => m.matchId);
     }
 
     // Collect all player IDs for image fetching
@@ -276,8 +404,13 @@ export async function GET(request: NextRequest) {
                 powerplay: [false, false],
                 inningsEnd: [false, false],
                 targetSet: false,
-                matchResult: false
+                matchResult: false,
+                playerMilestones: {}
             };
+        }
+        // Initialize stored milestones for this match if not exists
+        if (!storedMilestones[matchId]) {
+            storedMilestones[matchId] = [];
         }
         const tracked = matchEventsTracked[matchId];
 
@@ -388,13 +521,25 @@ export async function GET(request: NextRequest) {
                     if (b.id) allPlayerIds.push(b.id);
                 });
 
-                // Check for milestones (50 and 100) - include all players with 50+ runs
+                // Check for milestones (50 and 100) - only trigger once per player
                 batsmen.forEach((bat: any) => {
                     const playerId = bat.id;
                     const currentRuns = bat.runs || 0;
 
-                    // Add milestone for players with 100+ runs (century)
-                    if (currentRuns >= 100) {
+                    // Initialize playerMilestones object if not exists (for backwards compatibility)
+                    if (!tracked.playerMilestones) {
+                        tracked.playerMilestones = {};
+                    }
+                    // Initialize player milestone tracking if not exists
+                    const isNewPlayer = !tracked.playerMilestones[playerId];
+                    if (isNewPlayer) {
+                        tracked.playerMilestones[playerId] = { fifty: false, hundred: false };
+                    }
+                    const playerTracked = tracked.playerMilestones[playerId];
+
+                    // Add milestone for players with 100+ runs (century) - only once
+                    if (currentRuns >= 100 && !playerTracked.hundred) {
+                        playerTracked.hundred = true;
                         const milestoneData = {
                             type: 'milestone',
                             milestone: 100,
@@ -413,8 +558,9 @@ export async function GET(request: NextRequest) {
                         };
                         milestones.push(milestoneData);
                     }
-                    // Add milestone for players with 50-99 runs (half-century)
-                    else if (currentRuns >= 50) {
+                    // Add milestone for players with 50-99 runs (half-century) - only once
+                    else if (currentRuns >= 50 && !playerTracked.fifty) {
+                        playerTracked.fifty = true;
                         const milestoneData = {
                             type: 'milestone',
                             milestone: 50,
@@ -449,8 +595,8 @@ export async function GET(request: NextRequest) {
                     });
                 }
 
-                // Check for innings end (all out or overs complete)
-                const isInningsComplete = inning.isinningscomplete || currentWickets >= 10;
+                // Check for innings end (all out or overs complete - 20 overs for T20)
+                const isInningsComplete = inning.isinningscomplete || currentWickets >= 10 || currentOvers >= 20;
                 if (isInningsComplete && !tracked.inningsEnd[inningsIndex]) {
                     tracked.inningsEnd[inningsIndex] = true;
                     milestones.push({
@@ -578,8 +724,29 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    // Add milestones to logs
-    milestones.forEach(m => logs.push(m));
+    // Store new milestones and add to logs
+    milestones.forEach(m => {
+        // Store the milestone for future polls
+        if (storedMilestones[m.matchId]) {
+            storedMilestones[m.matchId].push(m);
+        }
+        logs.push(m);
+    });
+
+    // Also add all previously stored milestones to logs (for page refresh scenarios)
+    cachedMatchIds.forEach(matchId => {
+        if (storedMilestones[matchId]) {
+            storedMilestones[matchId].forEach(m => {
+                // Only add if not already in logs (avoid duplicates from current poll)
+                if (!milestones.includes(m)) {
+                    logs.push(m);
+                }
+            });
+        }
+    });
+
+    // Combine all stored milestones for response
+    const allMilestones = cachedMatchIds.flatMap(matchId => storedMilestones[matchId] || []);
 
     // Check if all tracked matches are complete
     const allMatchesComplete = cachedMatchIds.length === 0 && completedMatchIds.size > 0;
@@ -587,7 +754,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
         logs,
         matchCount: cachedMatchIds.length,
-        milestones,
+        milestones: allMilestones,
         cachedImages: Object.keys(playerImages).length,
         imagesFetchedThisPoll: imagesFetched,
         completedMatchIds: Array.from(completedMatchIds),

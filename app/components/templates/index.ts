@@ -1,0 +1,8 @@
+export { default as BaseTemplate } from './BaseTemplate';
+export { default as TossTemplate } from './TossTemplate';
+export { default as PowerplayTemplate } from './PowerplayTemplate';
+export { default as InningsEndTemplate } from './InningsEndTemplate';
+export { default as TargetTemplate } from './TargetTemplate';
+export { default as MatchResultTemplate } from './MatchResultTemplate';
+export { default as PlayingXITemplate } from './PlayingXITemplate';
+export { default as MilestoneTemplate } from './MilestoneTemplate';
