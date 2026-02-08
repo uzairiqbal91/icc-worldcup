@@ -4,9 +4,10 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface TargetTemplateProps {
+    /** DYNAMIC: The main target image - changes per match */
+    targetImage?: string;
     team1Logo?: string;
     team2Logo?: string;
-    playerImage?: string;
     /** Team that needs to chase (dynamic) */
     chasingTeam: string;
     /** Target runs (dynamic) */
@@ -14,26 +15,26 @@ interface TargetTemplateProps {
 }
 
 export default function TargetTemplate({
+    targetImage = "/assets/templates/target-layer.png",
     team1Logo,
     team2Logo,
-    playerImage,
     chasingTeam,
     target
 }: TargetTemplateProps) {
     return (
         <BaseTemplate
-            templateLayer="/assets/templates/target-layer.png"
+            templateLayer={targetImage}
             templateLayerStyle={{ left: -410, top: 0, width: 2024, height: 1350 }}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
-            playerImage={playerImage}
             mycoVariant="white"
         >
             {/* TARGET Title */}
             <p
-                className="absolute uppercase"
+                className="absolute uppercase text-center"
                 style={{
-                    left: 349.35, top: 986.76,
+                    left: '50%', top: 986.76,
+                    transform: 'translateX(-50%)',
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 700,
                     fontSize: 100,
@@ -47,15 +48,17 @@ export default function TargetTemplate({
 
             {/* Chasing team need X runs to win */}
             <p
-                className="absolute uppercase"
+                className="absolute uppercase text-center"
                 style={{
-                    left: 239.85, top: 1096.3,
+                    left: '50%', top: 1096.3,
+                    transform: 'translateX(-50%)',
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 500,
                     fontSize: 36,
                     lineHeight: '36px',
                     color: '#ffdc29',
                     letterSpacing: 0.6,
+                    whiteSpace: 'nowrap',
                 }}
             >
                 {chasingTeam} need {target} runs to win

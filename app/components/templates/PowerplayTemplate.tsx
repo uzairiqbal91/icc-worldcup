@@ -4,9 +4,10 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface PowerplayTemplateProps {
+    /** DYNAMIC: The main powerplay image - changes per match */
+    powerplayImage?: string;
     team1Logo?: string;
     team2Logo?: string;
-    playerImage?: string;
     /** Batting team name (dynamic) */
     battingTeam: string;
     /** Score (dynamic) */
@@ -18,9 +19,9 @@ interface PowerplayTemplateProps {
 }
 
 export default function PowerplayTemplate({
+    powerplayImage = "/assets/templates/powerplay-layer.png",
     team1Logo,
     team2Logo,
-    playerImage,
     battingTeam,
     score,
     wickets,
@@ -28,11 +29,10 @@ export default function PowerplayTemplate({
 }: PowerplayTemplateProps) {
     return (
         <BaseTemplate
-            templateLayer="/assets/templates/powerplay-layer.png"
+            templateLayer={powerplayImage}
             templateLayerStyle={{ left: -490, top: 0, width: 1975, height: 1347 }}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
-            playerImage={playerImage}
             showVsSection={true}
             vsStyle="bottom-large"
             mycoVariant="white"

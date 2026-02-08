@@ -4,9 +4,8 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface TossTemplateProps {
-    team1Logo?: string;
-    team2Logo?: string;
-    playerImage?: string;
+    /** DYNAMIC: The main toss image with stadium/players - changes per match */
+    tossImage?: string;
     /** Toss winning team (dynamic) */
     tossWinner: string;
     /** Toss decision: 'bat' or 'bowl' (dynamic) */
@@ -14,9 +13,7 @@ interface TossTemplateProps {
 }
 
 export default function TossTemplate({
-    team1Logo,
-    team2Logo,
-    playerImage,
+    tossImage = "/assets/templates/toss-layer.png",
     tossWinner,
     tossDecision
 }: TossTemplateProps) {
@@ -26,11 +23,8 @@ export default function TossTemplate({
 
     return (
         <BaseTemplate
-            templateLayer="/assets/templates/toss-layer.png"
+            templateLayer={tossImage}
             templateLayerStyle={{ left: -570, top: 0, width: 2069, height: 1361 }}
-            team1Logo={team1Logo}
-            team2Logo={team2Logo}
-            playerImage={playerImage}
             showVsSection={false}
             mycoVariant="white"
         >

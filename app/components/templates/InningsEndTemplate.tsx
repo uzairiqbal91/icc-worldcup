@@ -12,9 +12,10 @@ interface PlayerStats {
 }
 
 interface InningsEndTemplateProps {
+    /** DYNAMIC: The main innings end image - changes per match */
+    inningsEndImage?: string;
     team1Logo?: string;
     team2Logo?: string;
-    playerImage?: string;
     /** Batting team name (dynamic) */
     battingTeam: string;
     /** Total score (dynamic) */
@@ -32,9 +33,9 @@ interface InningsEndTemplateProps {
 }
 
 export default function InningsEndTemplate({
+    inningsEndImage = "/assets/templates/innings-end-layer.png",
     team1Logo,
     team2Logo,
-    playerImage,
     battingTeam,
     score,
     wickets,
@@ -45,45 +46,45 @@ export default function InningsEndTemplate({
 }: InningsEndTemplateProps) {
     const inningsText = inningsNumber === 1 ? '1st Innings' : '2nd Innings';
 
-    const formatPerformers = () => {
-        const performers: React.ReactNode[] = [];
-        topBatsmen.slice(0, 2).forEach((bat, i) => {
+    const formatBatsmen = () => {
+        return topBatsmen.slice(0, 2).map((bat, i) => {
             const parts = bat.name.split(' ');
             const firstName = parts[0];
             const lastName = parts.slice(1).join(' ');
-            performers.push(
+            return (
                 <span key={`bat-${i}`}>
                     <span style={{ fontWeight: 500 }}>{firstName} </span>
                     <span style={{ fontWeight: 700 }}>{lastName}</span>
                     <span style={{ fontWeight: 700 }}>{' '}{bat.runs}</span>
                     {bat.balls && <span style={{ fontWeight: 500 }}> ({bat.balls})</span>}
-                    {'   '}
+                    {i < topBatsmen.slice(0, 2).length - 1 && '   '}
                 </span>
             );
         });
-        topBowlers.slice(0, 2).forEach((bowl, i) => {
+    };
+
+    const formatBowlers = () => {
+        return topBowlers.slice(0, 2).map((bowl, i) => {
             const parts = bowl.name.split(' ');
             const firstName = parts[0];
             const lastName = parts.slice(1).join(' ');
-            performers.push(
+            return (
                 <span key={`bowl-${i}`}>
                     <span style={{ fontWeight: 500 }}>{firstName} </span>
                     <span style={{ fontWeight: 700 }}>{lastName}</span>
                     <span style={{ fontWeight: 700 }}>{' '}{bowl.wickets}-{bowl.runsGiven}</span>
-                    {'   '}
+                    {i < topBowlers.slice(0, 2).length - 1 && '   '}
                 </span>
             );
         });
-        return performers;
     };
 
     return (
         <BaseTemplate
-            templateLayer="/assets/templates/innings-end-layer.png"
+            templateLayer={inningsEndImage}
             templateLayerStyle={{ left: -530, top: 0, width: 2048, height: 1359 }}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
-            playerImage={playerImage}
             mycoVariant="white"
         >
             {/* End of */}
@@ -149,12 +150,13 @@ export default function InningsEndTemplate({
                 </p>
             </div>
 
-            {/* Top Performers */}
-            {(topBatsmen.length > 0 || topBowlers.length > 0) && (
+            {/* Top Batsmen - First Line */}
+            {topBatsmen.length > 0 && (
                 <div
-                    className="absolute uppercase"
+                    className="absolute uppercase text-center"
                     style={{
-                        left: 176.71, top: 1075.32,
+                        left: '50%', top: 1065,
+                        transform: 'translateX(-50%)',
                         fontFamily: "'Inter', sans-serif",
                         fontWeight: 500,
                         fontSize: 24,
@@ -164,7 +166,27 @@ export default function InningsEndTemplate({
                         whiteSpace: 'nowrap',
                     }}
                 >
-                    {formatPerformers()}
+                    {formatBatsmen()}
+                </div>
+            )}
+
+            {/* Top Bowlers - Second Line */}
+            {topBowlers.length > 0 && (
+                <div
+                    className="absolute uppercase text-center"
+                    style={{
+                        left: '50%', top: 1100,
+                        transform: 'translateX(-50%)',
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 500,
+                        fontSize: 24,
+                        lineHeight: '28px',
+                        color: '#ffffff',
+                        letterSpacing: 2.08,
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    {formatBowlers()}
                 </div>
             )}
         </BaseTemplate>

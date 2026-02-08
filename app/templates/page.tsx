@@ -50,6 +50,16 @@ interface FallOfWicketForm { battingTeam: string; score: number; wickets: number
 const inputClass = 'w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-green-500';
 const labelClass = 'block text-xs font-medium text-gray-400 mb-1';
 
+// Helper to convert file to data URL
+const fileToDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
 export default function TemplatesPage() {
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('toss');
     const [teams, setTeams] = useState<Team[]>([]);
@@ -81,7 +91,18 @@ export default function TemplatesPage() {
     // Custom image URLs — pre-filled with local assets
     const [team1LogoUrl, setTeam1LogoUrl] = useState('/assets/india-logo.png');
     const [team2LogoUrl, setTeam2LogoUrl] = useState('/assets/nz-logo.png');
-    const [playerImageUrl, setPlayerImageUrl] = useState('/assets/india-captain-transparent.png');
+
+    // DYNAMIC TEMPLATE LAYER IMAGES - the main image for each template (stadium/match scene)
+    // These are the images that change per match!
+    const [tossLayerImage, setTossLayerImage] = useState('/assets/templates/toss-layer.png');
+    const [powerplayLayerImage, setPowerplayLayerImage] = useState('/assets/templates/powerplay-layer.png');
+    const [inningsEndLayerImage, setInningsEndLayerImage] = useState('/assets/templates/innings-end-layer.png');
+    const [targetLayerImage, setTargetLayerImage] = useState('/assets/templates/target-layer.png');
+    const [matchResultLayerImage, setMatchResultLayerImage] = useState('/assets/templates/match-end-layer.png');
+    const [playingXILayerImage, setPlayingXILayerImage] = useState('/assets/templates/playing-xi-layer13.png');
+    const [milestoneLayerImage, setMilestoneLayerImage] = useState('/assets/templates/milestone-layer.png');
+    const [fallOfWicketLayerImage, setFallOfWicketLayerImage] = useState('/assets/templates/wicket-layer.png');
+
 
     useEffect(() => {
         async function fetchData() {
@@ -206,9 +227,7 @@ export default function TemplatesPage() {
             case 'toss':
                 return (
                     <TossTemplate
-                        team1Logo={resolvedTeam1Logo}
-                        team2Logo={resolvedTeam2Logo}
-                        playerImage={playerImageUrl}
+                        tossImage={tossLayerImage}
                         tossWinner={tossForm.tossWinner}
                         tossDecision={tossForm.tossDecision}
                     />
@@ -216,9 +235,9 @@ export default function TemplatesPage() {
             case 'powerplay':
                 return (
                     <PowerplayTemplate
+                        powerplayImage={powerplayLayerImage}
                         team1Logo={resolvedTeam1Logo}
                         team2Logo={resolvedTeam2Logo}
-                        playerImage={playerImageUrl}
                         battingTeam={powerplayForm.battingTeam}
                         score={powerplayForm.score}
                         wickets={powerplayForm.wickets}
@@ -228,9 +247,9 @@ export default function TemplatesPage() {
             case 'innings_end':
                 return (
                     <InningsEndTemplate
+                        inningsEndImage={inningsEndLayerImage}
                         team1Logo={resolvedTeam1Logo}
                         team2Logo={resolvedTeam2Logo}
-                        playerImage={playerImageUrl}
                         battingTeam={inningsEndForm.battingTeam}
                         score={inningsEndForm.score}
                         wickets={inningsEndForm.wickets}
@@ -249,9 +268,9 @@ export default function TemplatesPage() {
             case 'target':
                 return (
                     <TargetTemplate
+                        targetImage={targetLayerImage}
                         team1Logo={resolvedTeam1Logo}
                         team2Logo={resolvedTeam2Logo}
-                        playerImage={playerImageUrl}
                         chasingTeam={targetForm.chasingTeam}
                         target={targetForm.target}
                     />
@@ -259,9 +278,7 @@ export default function TemplatesPage() {
             case 'match_result':
                 return (
                     <MatchResultTemplate
-                        team1Logo={resolvedTeam1Logo}
-                        team2Logo={resolvedTeam2Logo}
-                        playerImage={playerImageUrl}
+                        matchResultImage={matchResultLayerImage}
                         winningTeam={matchResultForm.winningTeam}
                         resultText={matchResultForm.resultText}
                     />
@@ -269,9 +286,7 @@ export default function TemplatesPage() {
             case 'playing_xi':
                 return (
                     <PlayingXITemplate
-                        team1Logo={resolvedTeam1Logo}
-                        team2Logo={resolvedTeam2Logo}
-                        playerImage={playerImageUrl}
+                        playingXIImage={playingXILayerImage}
                         teamName={playingXIForm.teamName}
                         opponent={playingXIForm.opponent}
                         players={parsePlayingXI(playingXIForm.players)}
@@ -280,20 +295,19 @@ export default function TemplatesPage() {
             case 'milestone':
                 return (
                     <MilestoneTemplate
-                        team1Logo={resolvedTeam1Logo}
-                        team2Logo={resolvedTeam2Logo}
-                        playerImage={playerImageUrl}
+                        milestoneImage={milestoneLayerImage}
                         playerFirstName={milestoneForm.playerFirstName}
                         playerLastName={milestoneForm.playerLastName}
                         milestone={milestoneForm.milestone}
+                        teamLogo={resolvedTeam1Logo}
                     />
                 );
             case 'fall_of_wicket':
                 return (
                     <FallOfWicketTemplate
+                        fallOfWicketImage={fallOfWicketLayerImage}
                         team1Logo={resolvedTeam1Logo}
                         team2Logo={resolvedTeam2Logo}
-                        playerImage={playerImageUrl}
                         battingTeam={fallOfWicketForm.battingTeam}
                         score={fallOfWicketForm.score}
                         wickets={fallOfWicketForm.wickets}
@@ -543,40 +557,6 @@ export default function TemplatesPage() {
         <div className="min-h-screen bg-gray-900 text-white p-6">
             <h1 className="text-3xl font-bold text-center mb-6">ICC Cricket Social Media Templates</h1>
 
-            {/* Team Selection */}
-            <div className="max-w-4xl mx-auto mb-6 grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium mb-2">Team 1</label>
-                    <select
-                        value={selectedTeam1 || ''}
-                        onChange={(e) => setSelectedTeam1(Number(e.target.value) || null)}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                    >
-                        <option value="">-- Select Team --</option>
-                        {teams.map(team => (
-                            <option key={team.team_id} value={team.team_id}>
-                                {team.name} ({team.short_name})
-                            </option>
-                        ))}
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium mb-2">Team 2</label>
-                    <select
-                        value={selectedTeam2 || ''}
-                        onChange={(e) => setSelectedTeam2(Number(e.target.value) || null)}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                    >
-                        <option value="">-- Select Team --</option>
-                        {teams.filter(t => t.team_id !== selectedTeam1).map(team => (
-                            <option key={team.team_id} value={team.team_id}>
-                                {team.name} ({team.short_name})
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-
             {/* Template Selector */}
             <div className="flex flex-wrap justify-center gap-3 mb-8">
                 {templates.map(t => (
@@ -600,57 +580,147 @@ export default function TemplatesPage() {
                 <div className="w-80 flex-shrink-0 bg-gray-800 rounded-lg p-4 space-y-3">
                     <h3 className="font-bold text-sm text-green-400 uppercase tracking-wide mb-3">Dynamic Data</h3>
 
-                    {/* Custom Logo URLs with preview */}
+                    {/* BACKGROUND IMAGE - Dynamic per match */}
                     <div className="border-b border-gray-600 pb-3 mb-3">
-                        <p className="text-xs text-gray-500 mb-2">Team Logo Images</p>
-                        <div className="space-y-3">
-                            <div>
-                                <label className={labelClass}>Team 1 Logo URL</label>
-                                <input className={inputClass} value={team1LogoUrl} onChange={e => setTeam1LogoUrl(e.target.value)} placeholder="/assets/india-logo.png" />
-                                {team1LogoUrl && (
-                                    <div className="mt-1 flex items-center gap-2">
-                                        <div className="w-10 h-10 bg-gray-600 rounded flex items-center justify-center overflow-hidden">
-                                            <img src={team1LogoUrl} alt="Team 1" className="w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                        </div>
-                                        <span className="text-xs text-gray-500 truncate flex-1">{team1LogoUrl.split('/').pop()}</span>
-                                    </div>
-                                )}
+                        <p className="text-xs text-gray-500 mb-2">
+                            {selectedTemplate === 'toss' && 'Toss Template Image (Stadium/Match Scene)'}
+                            {selectedTemplate === 'powerplay' && 'Powerplay Template Image'}
+                            {selectedTemplate === 'innings_end' && 'Innings End Template Image'}
+                            {selectedTemplate === 'target' && 'Target Template Image'}
+                            {selectedTemplate === 'match_result' && 'Match Result Template Image'}
+                            {selectedTemplate === 'playing_xi' && 'Playing XI Template Image'}
+                            {selectedTemplate === 'milestone' && 'Milestone Template Image'}
+                            {selectedTemplate === 'fall_of_wicket' && 'Fall of Wicket Template Image'}
+                        </p>
+                        <div>
+                            <label className={labelClass}>Template Image URL (changes per match)</label>
+                            <input
+                                className={inputClass}
+                                value={
+                                    selectedTemplate === 'toss' ? tossLayerImage :
+                                    selectedTemplate === 'powerplay' ? powerplayLayerImage :
+                                    selectedTemplate === 'innings_end' ? inningsEndLayerImage :
+                                    selectedTemplate === 'target' ? targetLayerImage :
+                                    selectedTemplate === 'match_result' ? matchResultLayerImage :
+                                    selectedTemplate === 'playing_xi' ? playingXILayerImage :
+                                    selectedTemplate === 'milestone' ? milestoneLayerImage :
+                                    selectedTemplate === 'fall_of_wicket' ? fallOfWicketLayerImage : ''
+                                }
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (selectedTemplate === 'toss') setTossLayerImage(val);
+                                    else if (selectedTemplate === 'powerplay') setPowerplayLayerImage(val);
+                                    else if (selectedTemplate === 'innings_end') setInningsEndLayerImage(val);
+                                    else if (selectedTemplate === 'target') setTargetLayerImage(val);
+                                    else if (selectedTemplate === 'match_result') setMatchResultLayerImage(val);
+                                    else if (selectedTemplate === 'playing_xi') setPlayingXILayerImage(val);
+                                    else if (selectedTemplate === 'milestone') setMilestoneLayerImage(val);
+                                    else if (selectedTemplate === 'fall_of_wicket') setFallOfWicketLayerImage(val);
+                                }}
+                                placeholder="/assets/templates/toss-layer.png"
+                            />
+                            <div className="mt-2">
+                                <label className={labelClass}>Or Upload Image (PNG, JPG, JPEG, WebP, GIF)</label>
+                                <input
+                                    type="file"
+                                    accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif"
+                                    className="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-600 file:text-white hover:file:bg-green-700 file:cursor-pointer"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const dataUrl = await fileToDataUrl(file);
+                                            if (selectedTemplate === 'toss') setTossLayerImage(dataUrl);
+                                            else if (selectedTemplate === 'powerplay') setPowerplayLayerImage(dataUrl);
+                                            else if (selectedTemplate === 'innings_end') setInningsEndLayerImage(dataUrl);
+                                            else if (selectedTemplate === 'target') setTargetLayerImage(dataUrl);
+                                            else if (selectedTemplate === 'match_result') setMatchResultLayerImage(dataUrl);
+                                            else if (selectedTemplate === 'playing_xi') setPlayingXILayerImage(dataUrl);
+                                            else if (selectedTemplate === 'milestone') setMilestoneLayerImage(dataUrl);
+                                            else if (selectedTemplate === 'fall_of_wicket') setFallOfWicketLayerImage(dataUrl);
+                                        }
+                                    }}
+                                />
                             </div>
-                            <div>
-                                <label className={labelClass}>Team 2 Logo URL</label>
-                                <input className={inputClass} value={team2LogoUrl} onChange={e => setTeam2LogoUrl(e.target.value)} placeholder="/assets/nz-logo.png" />
-                                {team2LogoUrl && (
-                                    <div className="mt-1 flex items-center gap-2">
-                                        <div className="w-10 h-10 bg-gray-600 rounded flex items-center justify-center overflow-hidden">
-                                            <img src={team2LogoUrl} alt="Team 2" className="w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            {(() => {
+                                const currentImage =
+                                    selectedTemplate === 'toss' ? tossLayerImage :
+                                    selectedTemplate === 'powerplay' ? powerplayLayerImage :
+                                    selectedTemplate === 'innings_end' ? inningsEndLayerImage :
+                                    selectedTemplate === 'target' ? targetLayerImage :
+                                    selectedTemplate === 'match_result' ? matchResultLayerImage :
+                                    selectedTemplate === 'playing_xi' ? playingXILayerImage :
+                                    selectedTemplate === 'milestone' ? milestoneLayerImage :
+                                    selectedTemplate === 'fall_of_wicket' ? fallOfWicketLayerImage : '';
+                                return currentImage ? (
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <div className="w-20 h-12 bg-gray-600 rounded flex items-center justify-center overflow-hidden">
+                                            <img src={currentImage} alt="Template" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                         </div>
-                                        <span className="text-xs text-gray-500 truncate flex-1">{team2LogoUrl.split('/').pop()}</span>
+                                        <span className="text-xs text-gray-500 truncate flex-1">{currentImage.startsWith('data:') ? 'Uploaded Image' : currentImage.split('/').pop()}</span>
                                     </div>
-                                )}
-                            </div>
+                                ) : null;
+                            })()}
                         </div>
-                        {['toss', 'playing_xi', 'milestone'].includes(selectedTemplate) && (
-                            <p className="text-xs text-yellow-500 mt-2">This template does not show team logos in the design.</p>
-                        )}
+                        <p className="text-xs text-green-400 mt-2">THIS is the main image that changes per match!</p>
                     </div>
 
-                    {/* Player / Main Image */}
-                    <div className="border-b border-gray-600 pb-3 mb-3">
-                        <p className="text-xs text-gray-500 mb-2">Player / Main Image</p>
-                        <div>
-                            <label className={labelClass}>Player Image URL</label>
-                            <input className={inputClass} value={playerImageUrl} onChange={e => setPlayerImageUrl(e.target.value)} placeholder="/assets/india-captain-transparent.png" />
-                            {playerImageUrl && (
-                                <div className="mt-1 flex items-center gap-2">
-                                    <div className="w-16 h-20 bg-gray-600 rounded flex items-center justify-center overflow-hidden">
-                                        <img src={playerImageUrl} alt="Player" className="w-full h-full object-contain object-bottom" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                    </div>
-                                    <span className="text-xs text-gray-500 truncate flex-1">{playerImageUrl.split('/').pop()}</span>
+                    {/* Custom Logo URLs - only for templates that show logos */}
+                    {['powerplay', 'innings_end', 'target', 'fall_of_wicket', 'milestone'].includes(selectedTemplate) && (
+                        <div className="border-b border-gray-600 pb-3 mb-3">
+                            <p className="text-xs text-gray-500 mb-2">Team Logo Images (VS Section)</p>
+                            <div className="space-y-3">
+                                <div>
+                                    <label className={labelClass}>Team 1 Logo URL</label>
+                                    <input className={inputClass} value={team1LogoUrl} onChange={e => setTeam1LogoUrl(e.target.value)} placeholder="/assets/india-logo.png" />
+                                    <input
+                                        type="file"
+                                        accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif"
+                                        className="mt-1 w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-600 file:text-white hover:file:bg-green-700 file:cursor-pointer"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const dataUrl = await fileToDataUrl(file);
+                                                setTeam1LogoUrl(dataUrl);
+                                            }
+                                        }}
+                                    />
+                                    {team1LogoUrl && (
+                                        <div className="mt-1 flex items-center gap-2">
+                                            <div className="w-10 h-10 bg-gray-600 rounded flex items-center justify-center overflow-hidden">
+                                                <img src={team1LogoUrl} alt="Team 1" className="w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                            </div>
+                                            <span className="text-xs text-gray-500 truncate flex-1">{team1LogoUrl.startsWith('data:') ? 'Uploaded' : team1LogoUrl.split('/').pop()}</span>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                                <div>
+                                    <label className={labelClass}>Team 2 Logo URL</label>
+                                    <input className={inputClass} value={team2LogoUrl} onChange={e => setTeam2LogoUrl(e.target.value)} placeholder="/assets/nz-logo.png" />
+                                    <input
+                                        type="file"
+                                        accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif"
+                                        className="mt-1 w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-medium file:bg-green-600 file:text-white hover:file:bg-green-700 file:cursor-pointer"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const dataUrl = await fileToDataUrl(file);
+                                                setTeam2LogoUrl(dataUrl);
+                                            }
+                                        }}
+                                    />
+                                    {team2LogoUrl && (
+                                        <div className="mt-1 flex items-center gap-2">
+                                            <div className="w-10 h-10 bg-gray-600 rounded flex items-center justify-center overflow-hidden">
+                                                <img src={team2LogoUrl} alt="Team 2" className="w-full h-full object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                            </div>
+                                            <span className="text-xs text-gray-500 truncate flex-1">{team2LogoUrl.startsWith('data:') ? 'Uploaded' : team2LogoUrl.split('/').pop()}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                        <p className="text-xs text-gray-600 mt-2">Available: india-captain-transparent.png, nz-captain-transparent.png, team1-captain.png, team2-captain.png</p>
-                    </div>
+                    )}
+
 
                     {/* Template-specific fields */}
                     {renderFormFields()}

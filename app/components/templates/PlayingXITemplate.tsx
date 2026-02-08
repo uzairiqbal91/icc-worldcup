@@ -10,9 +10,8 @@ interface Player {
 }
 
 interface PlayingXITemplateProps {
-    team1Logo?: string;
-    team2Logo?: string;
-    playerImage?: string;
+    /** DYNAMIC: The main playing XI image - changes per match */
+    playingXIImage?: string;
     /** Team name (dynamic) */
     teamName: string;
     /** Opponent name (dynamic) */
@@ -22,25 +21,19 @@ interface PlayingXITemplateProps {
 }
 
 export default function PlayingXITemplate({
-    team1Logo,
-    team2Logo,
-    playerImage,
+    playingXIImage = "/assets/templates/playing-xi-layer13.png",
     teamName,
     opponent,
     players
 }: PlayingXITemplateProps) {
     return (
         <BaseTemplate
-            templateLayer="/assets/templates/playing-xi-layer13.png"
+            templateLayer={playingXIImage}
             templateLayerStyle={{ left: -120, top: 0, width: 2107, height: 1353 }}
             templateLayer2="/assets/templates/playing-xi-layer2.png"
             templateLayer2Style={{ left: 0, top: 0, width: 1316, height: 1352 }}
             templateLayer3="/assets/templates/playing-xi-layer14.png"
             templateLayer3Style={{ left: 511, top: 105, width: 569, height: 1180 }}
-            team1Logo={team1Logo}
-            team2Logo={team2Logo}
-            playerImage={playerImage}
-            playerImageStyle={{ left: 540, top: 150, width: 540, height: 700 }}
             showVsSection={false}
             mycoVariant="color-white"
         >

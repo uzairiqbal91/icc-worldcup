@@ -4,9 +4,10 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface FallOfWicketTemplateProps {
+    /** DYNAMIC: The main fall of wicket image - changes per match */
+    fallOfWicketImage?: string;
     team1Logo?: string;
     team2Logo?: string;
-    playerImage?: string;
     /** Batting team name (dynamic) */
     battingTeam: string;
     /** Score at wicket fall (dynamic) */
@@ -18,9 +19,9 @@ interface FallOfWicketTemplateProps {
 }
 
 export default function FallOfWicketTemplate({
+    fallOfWicketImage = "/assets/templates/wicket-layer.png",
     team1Logo,
     team2Logo,
-    playerImage,
     battingTeam,
     score,
     wickets,
@@ -28,11 +29,10 @@ export default function FallOfWicketTemplate({
 }: FallOfWicketTemplateProps) {
     return (
         <BaseTemplate
-            templateLayer="/assets/templates/wicket-layer.png"
+            templateLayer={fallOfWicketImage}
             templateLayerStyle={{ left: -380, top: -10, width: 1992, height: 1371 }}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
-            playerImage={playerImage}
             showVsSection={true}
             vsStyle="bottom-large"
             mycoVariant="white"

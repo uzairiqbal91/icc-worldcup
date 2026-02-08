@@ -4,7 +4,7 @@ import React from 'react';
 
 interface BaseTemplateProps {
     children: React.ReactNode;
-    /** The unique template-specific background layer image */
+    /** DYNAMIC: The main template image (stadium/match scene) - changes per match */
     templateLayer: string;
     templateLayerStyle: React.CSSProperties;
     /** Optional second template-specific layer */
@@ -17,10 +17,6 @@ interface BaseTemplateProps {
     team1Logo?: string;
     /** Team 2 logo URL (dynamic) */
     team2Logo?: string;
-    /** Main player/captain image URL (dynamic) */
-    playerImage?: string;
-    /** Player image position/size style */
-    playerImageStyle?: React.CSSProperties;
     /** Whether to show VS section with team logos at bottom */
     showVsSection?: boolean;
     /** VS section positioning variant */
@@ -41,8 +37,6 @@ export default function BaseTemplate({
     templateLayer3Style,
     team1Logo,
     team2Logo,
-    playerImage,
-    playerImageStyle,
     showVsSection = true,
     vsStyle = 'bottom-center',
     mycoVariant = 'white',
@@ -59,15 +53,26 @@ export default function BaseTemplate({
             className="relative overflow-hidden"
             style={{ width: 1080, height: 1350, backgroundColor: '#ffffff' }}
         >
-            {/* Background - common across all templates */}
+            {/* Static base background */}
             <div className="absolute" style={{ left: 0, top: 0, width: 1080, height: 1350 }}>
-                <img src="/assets/templates/bg-common.png" alt="" className="absolute inset-0 w-full h-full object-contain" />
+                <img
+                    src="/assets/templates/bg-common.png"
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                />
             </div>
 
-            {/* Template-specific main layer */}
-            <div className="absolute" style={templateLayerStyle}>
-                <img src={templateLayer} alt="" className="absolute inset-0 w-full h-full object-contain" />
-            </div>
+            {/* DYNAMIC: Template-specific main layer - this is the image that changes per match */}
+            {templateLayer && (
+                <div className="absolute" style={templateLayerStyle}>
+                    <img
+                        src={templateLayer}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-contain"
+                        crossOrigin={templateLayer.startsWith('data:') ? undefined : "anonymous"}
+                    />
+                </div>
+            )}
 
             {/* Optional template-specific layer 2 */}
             {templateLayer2 && templateLayer2Style && (
@@ -87,37 +92,6 @@ export default function BaseTemplate({
             <div className="absolute" style={{ left: 0, top: 299, width: 1080, height: 1051 }}>
                 <img src="/assets/templates/layer2-gradient.png" alt="" className="absolute inset-0 w-full h-full object-contain" />
             </div>
-
-            {/* Dynamic player/main image — rendered ABOVE gradient */}
-            {playerImage && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        zIndex: 10,
-                        background: 'rgba(255,0,0,0.15)',
-                        ...(playerImageStyle || { left: 250, top: 50, width: 580, height: 800 }),
-                    }}
-                >
-                    <img
-                        src={playerImage}
-                        alt="Player"
-                        crossOrigin="anonymous"
-                        width={580}
-                        height={800}
-                        style={{
-                            display: 'block',
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'contain',
-                            objectPosition: 'bottom',
-                        }}
-                        onError={(e) => {
-                            console.error('Player image failed to load:', playerImage);
-                            (e.target as HTMLImageElement).alt = 'FAILED: ' + playerImage;
-                        }}
-                    />
-                </div>
-            )}
 
             {/* Layer 4 - Decorative bottom right */}
             <div className="absolute" style={{ left: 720, top: 946, width: 878, height: 804 }}>
