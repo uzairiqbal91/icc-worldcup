@@ -1027,7 +1027,13 @@ export default function TemplatesPage() {
                                         const team = teams.find(t => t.name.toUpperCase() === selectedTeamName);
                                         if (team) {
                                             const teamPlayers = players.filter(p => p.team_id === team.team_id);
-                                            const playerNames = teamPlayers.map(p => p.name).join('\n');
+                                            // Sort: captain first, then others
+                                            const sortedPlayers = teamPlayers.sort((a, b) => {
+                                                if (a.role === 'Captain') return -1;
+                                                if (b.role === 'Captain') return 1;
+                                                return 0;
+                                            });
+                                            const playerNames = sortedPlayers.map(p => p.name).join('\n');
                                             setPlayingXIForm(f => ({ ...f, players: playerNames }));
                                         }
                                     } else {
