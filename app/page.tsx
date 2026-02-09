@@ -1184,12 +1184,10 @@ export default function TemplatesPage() {
 
     return (
         <div className="min-h-screen bg-gray-900 text-white p-6">
-            {/* Header with Logo and Logout */}
+            {/* Header with Title and Logout */}
             <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                    <img src="/favicon.png" alt="MYCO" className="h-10" />
-                    <h1 className="text-2xl font-bold">ICC Cricket Social Media Templates</h1>
-                </div>
+                <div className="w-20"></div>
+                <h1 className="text-3xl font-bold text-center">ICC Cricket Social Media Templates</h1>
                 <button
                     onClick={logout}
                     className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition text-sm"

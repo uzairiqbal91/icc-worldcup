@@ -11,7 +11,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const VALID_USERNAME = 'admin';
-const VALID_PASSWORD = 'myco786@';
+const VALID_PASSWORD = 'myco@786';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [isAuthenticated, setIsAuthenticated] = useState(false);

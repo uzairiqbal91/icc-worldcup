@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ICC Template Generator
+
+A Next.js application for creating professional cricket match templates with dynamic data.
+
+## Features
+
+- **8 Template Types**: Toss, Powerplay, Innings End, Target, Match Result, Playing XI, Milestone, Fall of Wicket
+- **Team & Player Management**: Integrated with Supabase database
+- **Image Upload & Save**: Upload custom images and save them for reuse
+- **Auto-Population**: Playing XI automatically populates with team players
+- **Export**: Download templates as high-quality images
+
+## Tech Stack
+
+- **Framework**: Next.js 15 (App Router)
+- **Styling**: Tailwind CSS
+- **Database**: Supabase
+- **Image Processing**: html2canvas
+- **Deployment**: Vercel
+
+## Environment Variables
+
+Create a `.env.local` file with:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
 
 ## Getting Started
 
-First, run the development server:
-
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Run the development server:
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Open [http://localhost:3000](http://localhost:3000)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deployment to Vercel
 
-## Learn More
+1. Push code to GitHub
+2. Import project in Vercel
+3. Add environment variables
+4. Deploy
 
-To learn more about Next.js, take a look at the following resources:
+## Database Setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The app requires the following Supabase tables:
+- `teams` - Team information
+- `players` - Player information  
+- `template_images` - Saved template images and logos
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Usage
 
-## Deploy on Vercel
+1. Select a template type
+2. Fill in match details
+3. Upload or select saved images
+4. Download the generated template
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built for ICC World Cup content creation.
