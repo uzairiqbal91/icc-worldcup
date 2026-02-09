@@ -10,7 +10,10 @@ interface Player {
 }
 
 interface PlayingXITemplateProps {
-    /** DYNAMIC: The main playing XI image - changes per match */
+    /** 
+     * DYNAMIC: The main playing XI image - changes per match
+     * Recommended size: 2107×1353px (landscape)
+     */
     playingXIImage?: string;
     /** Team name (dynamic) */
     teamName: string;
@@ -21,7 +24,7 @@ interface PlayingXITemplateProps {
 }
 
 export default function PlayingXITemplate({
-    playingXIImage = "/assets/templates/playing-xi-layer13.png",
+    playingXIImage,
     teamName,
     opponent,
     players
@@ -32,7 +35,7 @@ export default function PlayingXITemplate({
             templateLayerStyle={{ left: -120, top: 0, width: 2107, height: 1353 }}
             templateLayer2="/assets/templates/playing-xi-layer2.png"
             templateLayer2Style={{ left: 0, top: 0, width: 1316, height: 1352 }}
-            templateLayer3="/assets/templates/playing-xi-layer14.png"
+            // templateLayer3="/assets/templates/playing-xi-layer14.png"
             templateLayer3Style={{ left: 511, top: 105, width: 569, height: 1180 }}
             showVsSection={false}
             mycoVariant="color-white"

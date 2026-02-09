@@ -4,7 +4,10 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface TargetTemplateProps {
-    /** DYNAMIC: The main target image - changes per match */
+    /** 
+     * DYNAMIC: The main target image - changes per match
+     * Recommended size: 2024×1350px (landscape)
+     */
     targetImage?: string;
     team1Logo?: string;
     team2Logo?: string;
@@ -15,7 +18,7 @@ interface TargetTemplateProps {
 }
 
 export default function TargetTemplate({
-    targetImage = "/assets/templates/target-layer.png",
+    targetImage,
     team1Logo,
     team2Logo,
     chasingTeam,

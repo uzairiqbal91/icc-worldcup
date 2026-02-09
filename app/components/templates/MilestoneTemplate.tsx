@@ -4,7 +4,10 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface MilestoneTemplateProps {
-    /** DYNAMIC: The main milestone image - changes per match */
+    /** 
+     * DYNAMIC: The main milestone image - changes per match
+     * Recommended size: 2048×1405px (landscape)
+     */
     milestoneImage?: string;
     /** Player first name (dynamic) */
     playerFirstName: string;
@@ -17,7 +20,7 @@ interface MilestoneTemplateProps {
 }
 
 export default function MilestoneTemplate({
-    milestoneImage = "/assets/templates/milestone-layer.png",
+    milestoneImage,
     playerFirstName,
     playerLastName,
     milestone,
@@ -31,12 +34,15 @@ export default function MilestoneTemplate({
             mycoVariant="white"
         >
             {/* Milestone number (50 or 100) */}
-            <p
+            <div
                 className="absolute uppercase"
                 style={{
-                    left: 271, top: 636,
+                    left: milestone === 100 ? 240 : 245,
+                    top: 636,
                     width: 538,
-                    textAlign: 'center',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 700,
                     fontSize: 311.42,
@@ -47,15 +53,15 @@ export default function MilestoneTemplate({
                 }}
             >
                 {milestone}
-            </p>
+            </div>
 
             {/* RUNS */}
-            <p
+            <div
                 className="absolute uppercase"
                 style={{
-                    left: 271, top: 937.48,
-                    width: 538,
-                    textAlign: 'center',
+                    left: 540,
+                    top: 937.48,
+                    transform: 'translateX(-50%)',
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 400,
                     fontSize: 48,
@@ -66,7 +72,7 @@ export default function MilestoneTemplate({
                 }}
             >
                 runs
-            </p>
+            </div>
 
             {/* Divider line - yellow separator */}
             <div

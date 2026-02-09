@@ -5,8 +5,8 @@ import React from 'react';
 interface BaseTemplateProps {
     children: React.ReactNode;
     /** DYNAMIC: The main template image (stadium/match scene) - changes per match */
-    templateLayer: string;
-    templateLayerStyle: React.CSSProperties;
+    templateLayer?: string;
+    templateLayerStyle?: React.CSSProperties;
     /** Optional second template-specific layer */
     templateLayer2?: string;
     templateLayer2Style?: React.CSSProperties;
@@ -66,9 +66,10 @@ export default function BaseTemplate({
             {templateLayer && (
                 <div className="absolute" style={templateLayerStyle}>
                     <img
+                        key={templateLayer}
                         src={templateLayer}
                         alt=""
-                        className="absolute inset-0 w-full h-full object-contain"
+                        className="absolute inset-0 w-full h-full object-cover"
                         crossOrigin={templateLayer.startsWith('data:') ? undefined : "anonymous"}
                     />
                 </div>

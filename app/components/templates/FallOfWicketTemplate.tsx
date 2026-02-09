@@ -4,7 +4,10 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface FallOfWicketTemplateProps {
-    /** DYNAMIC: The main fall of wicket image - changes per match */
+    /** 
+     * DYNAMIC: The main fall of wicket image - changes per match
+     * Recommended size: 1992×1371px (landscape)
+     */
     fallOfWicketImage?: string;
     team1Logo?: string;
     team2Logo?: string;
@@ -19,7 +22,7 @@ interface FallOfWicketTemplateProps {
 }
 
 export default function FallOfWicketTemplate({
-    fallOfWicketImage = "/assets/templates/wicket-layer.png",
+    fallOfWicketImage,
     team1Logo,
     team2Logo,
     battingTeam,

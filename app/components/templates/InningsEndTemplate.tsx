@@ -12,7 +12,10 @@ interface PlayerStats {
 }
 
 interface InningsEndTemplateProps {
-    /** DYNAMIC: The main innings end image - changes per match */
+    /** 
+     * DYNAMIC: The main innings end image - changes per match
+     * Recommended size: 2048×1359px (landscape)
+     */
     inningsEndImage?: string;
     team1Logo?: string;
     team2Logo?: string;
@@ -33,7 +36,7 @@ interface InningsEndTemplateProps {
 }
 
 export default function InningsEndTemplate({
-    inningsEndImage = "/assets/templates/innings-end-layer.png",
+    inningsEndImage,
     team1Logo,
     team2Logo,
     battingTeam,

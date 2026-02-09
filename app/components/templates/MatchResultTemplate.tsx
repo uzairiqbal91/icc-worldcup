@@ -4,7 +4,10 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface MatchResultTemplateProps {
-    /** DYNAMIC: The main match result image - changes per match */
+    /** 
+     * DYNAMIC: The main match result image - changes per match
+     * Recommended size: 1972×1359px (landscape)
+     */
     matchResultImage?: string;
     /** The winning team name (dynamic) */
     winningTeam: string;
@@ -13,10 +16,22 @@ interface MatchResultTemplateProps {
 }
 
 export default function MatchResultTemplate({
-    matchResultImage = "/assets/templates/match-end-layer.png",
+    matchResultImage,
     winningTeam,
     resultText
 }: MatchResultTemplateProps) {
+    // Calculate font size based on team name length to prevent overflow
+    const getTeamNameFontSize = (teamName: string) => {
+        const length = teamName.length;
+        if (length <= 8) return 150;
+        if (length <= 10) return 130;
+        if (length <= 12) return 110;
+        if (length <= 15) return 90;
+        return 70;
+    };
+
+    const teamNameFontSize = getTeamNameFontSize(winningTeam);
+
     return (
         <BaseTemplate
             templateLayer={matchResultImage}
@@ -34,8 +49,8 @@ export default function MatchResultTemplate({
                     transform: 'translateX(-50%)',
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 700,
-                    fontSize: 150,
-                    lineHeight: '150px',
+                    fontSize: teamNameFontSize,
+                    lineHeight: `${teamNameFontSize}px`,
                     color: '#ffffff',
                     letterSpacing: -2.2,
                     whiteSpace: 'nowrap',

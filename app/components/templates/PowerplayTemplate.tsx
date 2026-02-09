@@ -4,7 +4,10 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface PowerplayTemplateProps {
-    /** DYNAMIC: The main powerplay image - changes per match */
+    /** 
+     * DYNAMIC: The main powerplay image - changes per match
+     * Recommended size: 1975×1347px (landscape)
+     */
     powerplayImage?: string;
     team1Logo?: string;
     team2Logo?: string;
@@ -19,7 +22,7 @@ interface PowerplayTemplateProps {
 }
 
 export default function PowerplayTemplate({
-    powerplayImage = "/assets/templates/powerplay-layer.png",
+    powerplayImage,
     team1Logo,
     team2Logo,
     battingTeam,
