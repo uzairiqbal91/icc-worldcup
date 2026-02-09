@@ -71,11 +71,6 @@ export default function TemplatesPage() {
     const [loading, setLoading] = useState(true);
     const posterRef = useRef<HTMLDivElement>(null);
 
-    // Show login page if not authenticated
-    if (!isAuthenticated) {
-        return <LoginPage />;
-    }
-
     // Form states for each template — pre-filled with sample data
     const [tossForm, setTossForm] = useState<TossForm>({ tossWinner: '', tossDecision: 'bat' });
     const [powerplayForm, setPowerplayForm] = useState<PowerplayForm>({ battingTeam: '', score: 58, wickets: 1, overs: 6 });
@@ -1173,6 +1168,11 @@ export default function TemplatesPage() {
                 return null;
         }
     };
+
+    // Show login page if not authenticated (must be after all hooks)
+    if (!isAuthenticated) {
+        return <LoginPage />;
+    }
 
     if (loading) {
         return (
