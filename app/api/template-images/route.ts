@@ -5,11 +5,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// GET - Fetch saved template images
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const teamId = searchParams.get('team_id');
+        const playerId = searchParams.get('player_id');
         const imageType = searchParams.get('image_type'); // 'template' or 'logo'
         const milestone = searchParams.get('milestone');
         const templateType = searchParams.get('template_type'); // 'toss', 'powerplay', 'milestone', etc.
@@ -21,6 +21,9 @@ export async function GET(request: Request) {
 
         if (teamId) {
             query = query.eq('team_id', parseInt(teamId));
+        }
+        if (playerId) {
+            query = query.eq('player_id', parseInt(playerId));
         }
         if (imageType) {
             query = query.eq('image_type', imageType);
@@ -53,11 +56,10 @@ export async function GET(request: Request) {
     }
 }
 
-// POST - Save a new template image
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { team_id, image_url, image_type, milestone, description, template_type } = body;
+        const { team_id, player_id, image_url, image_type, milestone, description, template_type } = body;
 
         if (!image_url || !image_type) {
             return NextResponse.json(
@@ -66,9 +68,6 @@ export async function POST(request: Request) {
             );
         }
 
-        // Check for duplicates
-        // For LOGOS: only check team_id + image_url + image_type (logos are reusable across templates)
-        // For TEMPLATES: check team_id + image_url + image_type + template_type + milestone
         let duplicateQuery = supabase
             .from('template_images')
             .select('id')
@@ -81,7 +80,6 @@ export async function POST(request: Request) {
             duplicateQuery = duplicateQuery.is('team_id', null);
         }
 
-        // Only check milestone and template_type for template images, not for logos
         if (image_type === 'template') {
             if (milestone) {
                 duplicateQuery = duplicateQuery.eq('milestone', milestone);
@@ -93,6 +91,10 @@ export async function POST(request: Request) {
                 duplicateQuery = duplicateQuery.eq('template_type', template_type);
             } else {
                 duplicateQuery = duplicateQuery.is('template_type', null);
+            }
+
+            if (template_type === 'milestone' && player_id) {
+                duplicateQuery = duplicateQuery.eq('player_id', player_id);
             }
         }
 
@@ -107,6 +109,7 @@ export async function POST(request: Request) {
             .from('template_images')
             .insert({
                 team_id: team_id || null,
+                player_id: player_id || null,
                 image_url,
                 image_type,
                 milestone: milestone || null,
@@ -126,7 +129,6 @@ export async function POST(request: Request) {
     }
 }
 
-// DELETE - Remove a saved image
 export async function DELETE(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
