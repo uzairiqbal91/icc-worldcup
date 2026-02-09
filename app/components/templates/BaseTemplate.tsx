@@ -7,6 +7,10 @@ interface BaseTemplateProps {
     /** DYNAMIC: The main template image (stadium/match scene) - changes per match */
     templateLayer?: string;
     templateLayerStyle?: React.CSSProperties;
+    /** Image position offset X (for drag/drop repositioning) */
+    imageOffsetX?: number;
+    /** Image position offset Y (for drag/drop repositioning) */
+    imageOffsetY?: number;
     /** Optional second template-specific layer */
     templateLayer2?: string;
     templateLayer2Style?: React.CSSProperties;
@@ -31,6 +35,8 @@ export default function BaseTemplate({
     children,
     templateLayer,
     templateLayerStyle,
+    imageOffsetX = 0,
+    imageOffsetY = 0,
     templateLayer2,
     templateLayer2Style,
     templateLayer3,
@@ -64,7 +70,11 @@ export default function BaseTemplate({
 
             {/* DYNAMIC: Template-specific main layer - this is the image that changes per match */}
             {templateLayer && (
-                <div className="absolute" style={templateLayerStyle}>
+                <div className="absolute" style={{
+                    ...templateLayerStyle,
+                    left: ((templateLayerStyle?.left as number) || 0) + imageOffsetX,
+                    top: ((templateLayerStyle?.top as number) || 0) + imageOffsetY,
+                }}>
                     <img
                         key={templateLayer}
                         src={templateLayer}

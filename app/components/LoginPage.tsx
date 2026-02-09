@@ -121,9 +121,9 @@ export default function LoginPage() {
                     </form>
                 </div>
 
-                <p className="text-center text-gray-500 text-sm mt-6">
+                {/* <p className="text-center text-gray-500 text-sm mt-6">
                     Powered by MYCO
-                </p>
+                </p> */}
             </div>
         </div>
     );

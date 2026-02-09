@@ -4,7 +4,7 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface MilestoneTemplateProps {
-    /** 
+    /**
      * DYNAMIC: The main milestone image - changes per match
      * Recommended size: 2048×1405px (landscape)
      */
@@ -17,6 +17,10 @@ interface MilestoneTemplateProps {
     milestone: number;
     /** Team logo URL (dynamic) - single team for player milestone */
     teamLogo?: string;
+    /** Image position offset X (for drag/drop repositioning) */
+    imageOffsetX?: number;
+    /** Image position offset Y (for drag/drop repositioning) */
+    imageOffsetY?: number;
 }
 
 export default function MilestoneTemplate({
@@ -24,12 +28,16 @@ export default function MilestoneTemplate({
     playerFirstName,
     playerLastName,
     milestone,
-    teamLogo
+    teamLogo,
+    imageOffsetX = 0,
+    imageOffsetY = 0,
 }: MilestoneTemplateProps) {
     return (
         <BaseTemplate
             templateLayer={milestoneImage}
             templateLayerStyle={{ left: -484, top: 0, width: 2048, height: 1405 }}
+            imageOffsetX={imageOffsetX}
+            imageOffsetY={imageOffsetY}
             showVsSection={false}
             mycoVariant="white"
         >

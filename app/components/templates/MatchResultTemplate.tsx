@@ -4,7 +4,7 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface MatchResultTemplateProps {
-    /** 
+    /**
      * DYNAMIC: The main match result image - changes per match
      * Recommended size: 1972×1359px (landscape)
      */
@@ -13,12 +13,18 @@ interface MatchResultTemplateProps {
     winningTeam: string;
     /** Result text e.g. "won by 106 runs" (dynamic) */
     resultText: string;
+    /** Image position offset X (for drag/drop repositioning) */
+    imageOffsetX?: number;
+    /** Image position offset Y (for drag/drop repositioning) */
+    imageOffsetY?: number;
 }
 
 export default function MatchResultTemplate({
     matchResultImage,
     winningTeam,
-    resultText
+    resultText,
+    imageOffsetX = 0,
+    imageOffsetY = 0,
 }: MatchResultTemplateProps) {
     // Calculate font size based on team name length to prevent overflow
     const getTeamNameFontSize = (teamName: string) => {
@@ -36,6 +42,8 @@ export default function MatchResultTemplate({
         <BaseTemplate
             templateLayer={matchResultImage}
             templateLayerStyle={{ left: -818, top: 0, width: 1972, height: 1359 }}
+            imageOffsetX={imageOffsetX}
+            imageOffsetY={imageOffsetY}
             templateLayer2="/assets/templates/match-end-layer7.png"
             templateLayer2Style={{ left: 911, top: 45, width: 124, height: 111 }}
             showVsSection={false}

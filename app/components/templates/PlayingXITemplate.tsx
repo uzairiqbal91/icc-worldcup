@@ -10,7 +10,7 @@ interface Player {
 }
 
 interface PlayingXITemplateProps {
-    /** 
+    /**
      * DYNAMIC: The main playing XI image - changes per match
      * Recommended size: 2107×1353px (landscape)
      */
@@ -21,18 +21,26 @@ interface PlayingXITemplateProps {
     opponent: string;
     /** List of 11 players (dynamic) */
     players: Player[];
+    /** Image position offset X (for drag/drop repositioning) */
+    imageOffsetX?: number;
+    /** Image position offset Y (for drag/drop repositioning) */
+    imageOffsetY?: number;
 }
 
 export default function PlayingXITemplate({
     playingXIImage,
     teamName,
     opponent,
-    players
+    players,
+    imageOffsetX = 0,
+    imageOffsetY = 0,
 }: PlayingXITemplateProps) {
     return (
         <BaseTemplate
             templateLayer={playingXIImage}
             templateLayerStyle={{ left: -120, top: 0, width: 2107, height: 1353 }}
+            imageOffsetX={imageOffsetX}
+            imageOffsetY={imageOffsetY}
             templateLayer2="/assets/templates/playing-xi-layer2.png"
             templateLayer2Style={{ left: 0, top: 0, width: 1316, height: 1352 }}
             // templateLayer3="/assets/templates/playing-xi-layer14.png"

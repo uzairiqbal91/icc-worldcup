@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
     TossTemplate,
     PowerplayTemplate,
@@ -16,6 +16,111 @@ import LoginPage from './components/LoginPage';
 import { useAuth } from './context/AuthContext';
 
 type TemplateType = 'toss' | 'powerplay' | 'innings_end' | 'target' | 'match_result' | 'playing_xi' | 'milestone' | 'fall_of_wicket';
+
+// Preview component with drag functionality
+interface PreviewWithDragProps {
+    posterRef: React.RefObject<HTMLDivElement | null>;
+    renderTemplate: () => React.ReactNode;
+    hasImage: boolean;
+    imageOffset: { x: number; y: number };
+    onImageOffsetChange: (x: number, y: number) => void;
+}
+
+function PreviewWithDrag({ posterRef, renderTemplate, hasImage, imageOffset, onImageOffsetChange }: PreviewWithDragProps) {
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStartRef = useRef({ x: 0, y: 0 });
+    const initialOffsetRef = useRef({ x: 0, y: 0 });
+
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        if (!hasImage) return;
+        e.preventDefault();
+        setIsDragging(true);
+        dragStartRef.current = { x: e.clientX, y: e.clientY };
+        initialOffsetRef.current = { x: imageOffset.x, y: imageOffset.y };
+    }, [hasImage, imageOffset]);
+
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        if (!hasImage) return;
+        const touch = e.touches[0];
+        setIsDragging(true);
+        dragStartRef.current = { x: touch.clientX, y: touch.clientY };
+        initialOffsetRef.current = { x: imageOffset.x, y: imageOffset.y };
+    }, [hasImage, imageOffset]);
+
+    useEffect(() => {
+        if (!isDragging) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const deltaX = e.clientX - dragStartRef.current.x;
+            const deltaY = e.clientY - dragStartRef.current.y;
+            // Scale factor: preview is 0.4x, so multiply by 2.5 to get actual movement
+            const scale = 2.5;
+            onImageOffsetChange(
+                initialOffsetRef.current.x + (deltaX * scale),
+                initialOffsetRef.current.y + (deltaY * scale)
+            );
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - dragStartRef.current.x;
+            const deltaY = touch.clientY - dragStartRef.current.y;
+            const scale = 2.5;
+            onImageOffsetChange(
+                initialOffsetRef.current.x + (deltaX * scale),
+                initialOffsetRef.current.y + (deltaY * scale)
+            );
+        };
+
+        const handleEnd = () => {
+            setIsDragging(false);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchmove', handleTouchMove);
+        window.addEventListener('touchend', handleEnd);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleEnd);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('touchend', handleEnd);
+        };
+    }, [isDragging, onImageOffsetChange]);
+
+    return (
+        <div
+            className="relative"
+            style={{
+                width: '432px',
+                height: '540px',
+                cursor: hasImage ? (isDragging ? 'grabbing' : 'grab') : 'default',
+            }}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+        >
+            <div style={{ transform: 'scale(0.4)', transformOrigin: 'top left', pointerEvents: 'none' }}>
+                <div ref={posterRef}>
+                    {renderTemplate()}
+                </div>
+            </div>
+            {/* Drag overlay indicator */}
+            {hasImage && (
+                <div
+                    className={`absolute inset-0 rounded-lg transition-all duration-200 ${isDragging ? 'border-4 border-green-500 bg-green-500/10' : 'border-2 border-transparent hover:border-green-400/50'}`}
+                    style={{ pointerEvents: 'none' }}
+                />
+            )}
+            {/* Drag hint */}
+            {hasImage && !isDragging && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-3 py-1 rounded-full pointer-events-none">
+                    Drag to reposition image
+                </div>
+            )}
+        </div>
+    );
+}
 
 interface Team {
     team_id: number;
@@ -101,6 +206,9 @@ export default function TemplatesPage() {
     const [playingXILayerImage, setPlayingXILayerImage] = useState('');
     const [milestoneLayerImage, setMilestoneLayerImage] = useState('');
     const [fallOfWicketLayerImage, setFallOfWicketLayerImage] = useState('');
+
+    // Image position offsets for drag and drop repositioning
+    const [imageOffset, setImageOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
     const [savedImages, setSavedImages] = useState<any[]>([]);
     const [loadingSavedImages, setLoadingSavedImages] = useState(false);
@@ -225,6 +333,7 @@ export default function TemplatesPage() {
         setMilestoneLayerImage('');
         setFallOfWicketLayerImage('');
         setTemplateFileKey(prev => prev + 1);
+        setImageOffset({ x: 0, y: 0 }); // Reset image position when template changes
     }, [
         selectedTemplate
     ]);
@@ -597,6 +706,15 @@ export default function TemplatesPage() {
         setCurrentTemplateImage('');
         setTemplateFileKey(prev => prev + 1);
         setIsTemplateFromGallery(false);
+        setImageOffset({ x: 0, y: 0 }); // Reset position when clearing image
+    };
+
+    const handleImageOffsetChange = (x: number, y: number) => {
+        setImageOffset({ x, y });
+    };
+
+    const resetImagePosition = () => {
+        setImageOffset({ x: 0, y: 0 });
     };
 
     const deleteSavedImage = async (imageId: number, imageType: 'template' | 'logo') => {
@@ -655,6 +773,8 @@ export default function TemplatesPage() {
                         tossImage={tossLayerImage}
                         tossWinner={tossForm.tossWinner}
                         tossDecision={tossForm.tossDecision}
+                        imageOffsetX={imageOffset.x}
+                        imageOffsetY={imageOffset.y}
                     />
                 );
             case 'powerplay':
@@ -667,6 +787,8 @@ export default function TemplatesPage() {
                         score={powerplayForm.score}
                         wickets={powerplayForm.wickets}
                         overs={powerplayForm.overs}
+                        imageOffsetX={imageOffset.x}
+                        imageOffsetY={imageOffset.y}
                     />
                 );
             case 'innings_end':
@@ -688,6 +810,8 @@ export default function TemplatesPage() {
                             { name: inningsEndForm.bowler1Name, wickets: inningsEndForm.bowler1Wickets, runsGiven: inningsEndForm.bowler1Runs },
                             { name: inningsEndForm.bowler2Name, wickets: inningsEndForm.bowler2Wickets, runsGiven: inningsEndForm.bowler2Runs },
                         ]}
+                        imageOffsetX={imageOffset.x}
+                        imageOffsetY={imageOffset.y}
                     />
                 );
             case 'target':
@@ -698,6 +822,8 @@ export default function TemplatesPage() {
                         team2Logo={resolvedTeam2Logo}
                         chasingTeam={targetForm.chasingTeam}
                         target={targetForm.target}
+                        imageOffsetX={imageOffset.x}
+                        imageOffsetY={imageOffset.y}
                     />
                 );
             case 'match_result':
@@ -706,6 +832,8 @@ export default function TemplatesPage() {
                         matchResultImage={matchResultLayerImage}
                         winningTeam={matchResultForm.winningTeam}
                         resultText={matchResultForm.resultText}
+                        imageOffsetX={imageOffset.x}
+                        imageOffsetY={imageOffset.y}
                     />
                 );
             case 'playing_xi':
@@ -715,6 +843,8 @@ export default function TemplatesPage() {
                         teamName={playingXIForm.teamName}
                         opponent={playingXIForm.opponent}
                         players={parsePlayingXI(playingXIForm.players)}
+                        imageOffsetX={imageOffset.x}
+                        imageOffsetY={imageOffset.y}
                     />
                 );
             case 'milestone':
@@ -725,6 +855,8 @@ export default function TemplatesPage() {
                         playerLastName={milestoneForm.playerLastName}
                         milestone={milestoneForm.milestone}
                         teamLogo={resolvedTeam1Logo}
+                        imageOffsetX={imageOffset.x}
+                        imageOffsetY={imageOffset.y}
                     />
                 );
             case 'fall_of_wicket':
@@ -737,6 +869,8 @@ export default function TemplatesPage() {
                         score={fallOfWicketForm.score}
                         wickets={fallOfWicketForm.wickets}
                         overs={fallOfWicketForm.overs}
+                        imageOffsetX={imageOffset.x}
+                        imageOffsetY={imageOffset.y}
                     />
                 );
             default:
@@ -1280,6 +1414,18 @@ export default function TemplatesPage() {
                                                 Clear
                                             </button>
                                         </div>
+                                        {/* Drag instruction and reset position */}
+                                        <div className="mt-2 flex items-center justify-between">
+                                            <span className="text-xs text-gray-400">Drag image in preview to reposition</span>
+                                            {(imageOffset.x !== 0 || imageOffset.y !== 0) && (
+                                                <button
+                                                    onClick={resetImagePosition}
+                                                    className="px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded transition"
+                                                >
+                                                    Reset Position
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 ) : null;
                             })()}
@@ -1643,13 +1789,13 @@ export default function TemplatesPage() {
 
                 {/* Preview + Download */}
                 <div className="flex-1 flex flex-col items-center">
-                    <div className="relative" style={{ width: '432px', height: '540px' }}>
-                        <div style={{ transform: 'scale(0.4)', transformOrigin: 'top left' }}>
-                            <div ref={posterRef}>
-                                {renderTemplate()}
-                            </div>
-                        </div>
-                    </div>
+                    <PreviewWithDrag
+                        posterRef={posterRef}
+                        renderTemplate={renderTemplate}
+                        hasImage={!!getCurrentTemplateImage()}
+                        imageOffset={imageOffset}
+                        onImageOffsetChange={handleImageOffsetChange}
+                    />
 
                     <button
                         onClick={downloadPoster}

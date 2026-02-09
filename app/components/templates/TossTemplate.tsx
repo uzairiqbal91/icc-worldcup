@@ -10,12 +10,18 @@ interface TossTemplateProps {
     tossWinner: string;
     /** Toss decision: 'bat' or 'bowl' (dynamic) */
     tossDecision: string;
+    /** Image position offset X (for drag/drop repositioning) */
+    imageOffsetX?: number;
+    /** Image position offset Y (for drag/drop repositioning) */
+    imageOffsetY?: number;
 }
 
 export default function TossTemplate({
     tossImage = "/assets/templates/toss-layer.png",
     tossWinner,
-    tossDecision
+    tossDecision,
+    imageOffsetX = 0,
+    imageOffsetY = 0,
 }: TossTemplateProps) {
     const decisionText = tossDecision.toLowerCase().includes('bat')
         ? 'elected to bat first'
@@ -25,6 +31,8 @@ export default function TossTemplate({
         <BaseTemplate
             templateLayer={tossImage}
             templateLayerStyle={{ left: -570, top: 0, width: 2069, height: 1361 }}
+            imageOffsetX={imageOffsetX}
+            imageOffsetY={imageOffsetY}
             showVsSection={false}
             mycoVariant="white"
         >

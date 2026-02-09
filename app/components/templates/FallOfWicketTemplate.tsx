@@ -4,7 +4,7 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface FallOfWicketTemplateProps {
-    /** 
+    /**
      * DYNAMIC: The main fall of wicket image - changes per match
      * Recommended size: 1992×1371px (landscape)
      */
@@ -19,6 +19,10 @@ interface FallOfWicketTemplateProps {
     wickets: number;
     /** Overs at wicket fall (dynamic) */
     overs: number;
+    /** Image position offset X (for drag/drop repositioning) */
+    imageOffsetX?: number;
+    /** Image position offset Y (for drag/drop repositioning) */
+    imageOffsetY?: number;
 }
 
 export default function FallOfWicketTemplate({
@@ -28,12 +32,16 @@ export default function FallOfWicketTemplate({
     battingTeam,
     score,
     wickets,
-    overs
+    overs,
+    imageOffsetX = 0,
+    imageOffsetY = 0,
 }: FallOfWicketTemplateProps) {
     return (
         <BaseTemplate
             templateLayer={fallOfWicketImage}
             templateLayerStyle={{ left: -380, top: -10, width: 1992, height: 1371 }}
+            imageOffsetX={imageOffsetX}
+            imageOffsetY={imageOffsetY}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
             showVsSection={true}

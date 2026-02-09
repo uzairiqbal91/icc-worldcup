@@ -4,7 +4,7 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface PowerplayTemplateProps {
-    /** 
+    /**
      * DYNAMIC: The main powerplay image - changes per match
      * Recommended size: 1975×1347px (landscape)
      */
@@ -19,6 +19,10 @@ interface PowerplayTemplateProps {
     wickets: number;
     /** Overs (dynamic) */
     overs: number;
+    /** Image position offset X (for drag/drop repositioning) */
+    imageOffsetX?: number;
+    /** Image position offset Y (for drag/drop repositioning) */
+    imageOffsetY?: number;
 }
 
 export default function PowerplayTemplate({
@@ -28,12 +32,16 @@ export default function PowerplayTemplate({
     battingTeam,
     score,
     wickets,
-    overs
+    overs,
+    imageOffsetX = 0,
+    imageOffsetY = 0,
 }: PowerplayTemplateProps) {
     return (
         <BaseTemplate
             templateLayer={powerplayImage}
             templateLayerStyle={{ left: -490, top: 0, width: 1975, height: 1347 }}
+            imageOffsetX={imageOffsetX}
+            imageOffsetY={imageOffsetY}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
             showVsSection={true}

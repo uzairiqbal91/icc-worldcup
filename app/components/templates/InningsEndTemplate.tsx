@@ -12,7 +12,7 @@ interface PlayerStats {
 }
 
 interface InningsEndTemplateProps {
-    /** 
+    /**
      * DYNAMIC: The main innings end image - changes per match
      * Recommended size: 2048×1359px (landscape)
      */
@@ -33,6 +33,10 @@ interface InningsEndTemplateProps {
     topBatsmen?: PlayerStats[];
     /** Top bowlers stats (dynamic) */
     topBowlers?: PlayerStats[];
+    /** Image position offset X (for drag/drop repositioning) */
+    imageOffsetX?: number;
+    /** Image position offset Y (for drag/drop repositioning) */
+    imageOffsetY?: number;
 }
 
 export default function InningsEndTemplate({
@@ -45,7 +49,9 @@ export default function InningsEndTemplate({
     overs,
     inningsNumber,
     topBatsmen = [],
-    topBowlers = []
+    topBowlers = [],
+    imageOffsetX = 0,
+    imageOffsetY = 0,
 }: InningsEndTemplateProps) {
     const inningsText = inningsNumber === 1 ? '1st Innings' : '2nd Innings';
 
@@ -86,6 +92,8 @@ export default function InningsEndTemplate({
         <BaseTemplate
             templateLayer={inningsEndImage}
             templateLayerStyle={{ left: -530, top: 0, width: 2048, height: 1359 }}
+            imageOffsetX={imageOffsetX}
+            imageOffsetY={imageOffsetY}
             team1Logo={team1Logo}
             team2Logo={team2Logo}
             mycoVariant="white"
