@@ -13,7 +13,62 @@ import {
 } from './components/templates';
 import Toast from './components/Toast';
 import LoginPage from './components/LoginPage';
+import LiveMatches from './components/LiveMatches';
 import { useAuth } from './context/AuthContext';
+
+// Match types for live data
+interface LiveMatch {
+    matchId: number;
+    seriesId: number;
+    seriesName: string;
+    matchDesc: string;
+    matchFormat: string;
+    state: string;
+    status: string;
+    category: 'live' | 'completed' | 'upcoming';
+    team1: { id: number; name: string; shortName: string; imageUrl: string | null };
+    team2: { id: number; name: string; shortName: string; imageUrl: string | null };
+    venue: string;
+    city: string;
+    isLive: boolean;
+    isCompleted: boolean;
+}
+
+interface MatchDetails {
+    matchId: string;
+    state: string;
+    status: string;
+    team1: {
+        id: number;
+        name: string;
+        shortName: string;
+        imageUrl: string | null;
+        players: Array<{ id: number; name: string; fullName: string; isCaptain: boolean; isKeeper: boolean; }>;
+    };
+    team2: {
+        id: number;
+        name: string;
+        shortName: string;
+        imageUrl: string | null;
+        players: Array<{ id: number; name: string; fullName: string; isCaptain: boolean; isKeeper: boolean; }>;
+    };
+    toss: { winner: string; decision: string } | null;
+    innings: Array<{
+        battingTeam: string;
+        battingTeamShort: string;
+        score: number;
+        wickets: number;
+        overs: number;
+        target: number | null;
+        isComplete: boolean;
+        isPowerplayComplete: boolean;
+        batsmen: Array<{ name: string; runs: number; balls: number }>;
+        bowlers: Array<{ name: string; wickets: number; runs: number }>;
+    }>;
+    currentInnings: any;
+    events: string[];
+    result: string | null;
+}
 
 type TemplateType = 'toss' | 'powerplay' | 'innings_end' | 'target' | 'match_result' | 'playing_xi' | 'milestone' | 'fall_of_wicket';
 
@@ -175,6 +230,12 @@ export default function TemplatesPage() {
     const [selectedTeam2, setSelectedTeam2] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const posterRef = useRef<HTMLDivElement>(null);
+
+    // Live match states
+    const [selectedMatch, setSelectedMatch] = useState<LiveMatch | null>(null);
+    const [matchDetails, setMatchDetails] = useState<MatchDetails | null>(null);
+    const [loadingMatch, setLoadingMatch] = useState(false);
+    const [detectedEvents, setDetectedEvents] = useState<string[]>([]);
 
     // Form states for each template — pre-filled with sample data
     const [tossForm, setTossForm] = useState<TossForm>({ tossWinner: '', tossDecision: 'bat' });
@@ -373,6 +434,167 @@ export default function TemplatesPage() {
         } catch (error) {
             console.error('Error fetching saved logos:', error);
             setSavedLogos([]);
+        }
+    };
+
+    // Handle match selection from LiveMatches
+    const handleSelectMatch = async (match: LiveMatch) => {
+        setSelectedMatch(match);
+        setLoadingMatch(true);
+
+        try {
+            const res = await fetch(`/api/match-details?matchId=${match.matchId}`);
+            const data = await res.json();
+
+            if (data.success) {
+                setMatchDetails(data);
+                setDetectedEvents(data.events || []);
+                autoFillFromMatchData(data, match);
+            }
+        } catch (error) {
+            console.error('Error fetching match details:', error);
+        } finally {
+            setLoadingMatch(false);
+        }
+    };
+
+    // Auto-fill form data from live match
+    const autoFillFromMatchData = (data: MatchDetails, match: LiveMatch) => {
+        // Set team logos
+        if (match.team1.imageUrl) setTeam1LogoUrl(match.team1.imageUrl);
+        if (match.team2.imageUrl) setTeam2LogoUrl(match.team2.imageUrl);
+
+        // Auto-fill toss
+        if (data.toss) {
+            setTossForm({
+                tossWinner: data.toss.winner?.toUpperCase() || '',
+                tossDecision: data.toss.decision || 'bat',
+            });
+        }
+
+        // Auto-fill Playing XI
+        if (data.team1.players.length > 0) {
+            const playersText = data.team1.players.map(p => {
+                let suffix = '';
+                if (p.isCaptain && p.isKeeper) suffix = ' (C & WK)';
+                else if (p.isCaptain) suffix = ' (C)';
+                else if (p.isKeeper) suffix = ' (WK)';
+                return p.name + suffix;
+            }).join('\n');
+
+            setPlayingXIForm({
+                teamName: data.team1.name?.toUpperCase() || '',
+                opponent: data.team2.name?.toUpperCase() || '',
+                players: playersText,
+            });
+        }
+
+        // Auto-fill from innings data
+        if (data.innings && data.innings.length > 0) {
+            const firstInnings = data.innings[0];
+            const secondInnings = data.innings[1];
+
+            // Powerplay (first innings, first 6 overs)
+            if (firstInnings) {
+                setPowerplayForm({
+                    battingTeam: firstInnings.battingTeam?.toUpperCase() || '',
+                    score: firstInnings.score || 0,
+                    wickets: firstInnings.wickets || 0,
+                    overs: Math.min(firstInnings.overs || 0, 6),
+                });
+
+                // Innings End (if complete)
+                if (firstInnings.isComplete) {
+                    const topBatsmen = firstInnings.batsmen?.slice(0, 2) || [];
+                    const topBowlers = firstInnings.bowlers?.slice(0, 2) || [];
+
+                    setInningsEndForm({
+                        battingTeam: firstInnings.battingTeam?.toUpperCase() || '',
+                        score: firstInnings.score || 0,
+                        wickets: firstInnings.wickets || 0,
+                        overs: firstInnings.overs || 0,
+                        inningsNumber: 1,
+                        batsman1Name: topBatsmen[0]?.name || '',
+                        batsman1Runs: topBatsmen[0]?.runs || 0,
+                        batsman1Balls: topBatsmen[0]?.balls || 0,
+                        batsman2Name: topBatsmen[1]?.name || '',
+                        batsman2Runs: topBatsmen[1]?.runs || 0,
+                        batsman2Balls: topBatsmen[1]?.balls || 0,
+                        bowler1Name: topBowlers[0]?.name || '',
+                        bowler1Wickets: topBowlers[0]?.wickets || 0,
+                        bowler1Runs: topBowlers[0]?.runs || 0,
+                        bowler2Name: topBowlers[1]?.name || '',
+                        bowler2Wickets: topBowlers[1]?.wickets || 0,
+                        bowler2Runs: topBowlers[1]?.runs || 0,
+                    });
+
+                    // Target
+                    setTargetForm({
+                        chasingTeam: secondInnings?.battingTeam?.toUpperCase() || data.team2.name?.toUpperCase() || '',
+                        target: (firstInnings.score || 0) + 1,
+                    });
+                }
+
+                // Fall of wicket (current innings)
+                const currentInnings = data.currentInnings || firstInnings;
+                setFallOfWicketForm({
+                    battingTeam: currentInnings.battingTeam?.toUpperCase() || '',
+                    score: currentInnings.score || 0,
+                    wickets: currentInnings.wickets || 0,
+                    overs: currentInnings.overs || 0,
+                });
+            }
+
+            // Check for milestones
+            data.innings.forEach(inn => {
+                inn.batsmen?.forEach(bat => {
+                    if (bat.runs >= 50) {
+                        const nameParts = bat.name.split(' ');
+                        setMilestoneForm({
+                            playerFirstName: nameParts[0] || '',
+                            playerLastName: nameParts.slice(1).join(' ') || nameParts[0],
+                            milestone: bat.runs >= 100 ? 100 : 50,
+                        });
+                    }
+                });
+            });
+        }
+
+        // Match result
+        if (data.state === 'Complete' && data.result) {
+            const resultParts = data.result.split(' won ');
+            if (resultParts.length >= 1) {
+                setMatchResultForm({
+                    winningTeam: resultParts[0]?.toUpperCase() || '',
+                    resultText: 'won ' + (resultParts[1] || ''),
+                });
+            }
+        }
+    };
+
+    // Go back to match list
+    const handleBackToMatches = () => {
+        setSelectedMatch(null);
+        setMatchDetails(null);
+        setDetectedEvents([]);
+    };
+
+    // Refresh match data
+    const refreshMatchData = async () => {
+        if (!selectedMatch) return;
+        setLoadingMatch(true);
+        try {
+            const res = await fetch(`/api/match-details?matchId=${selectedMatch.matchId}`);
+            const data = await res.json();
+            if (data.success) {
+                setMatchDetails(data);
+                setDetectedEvents(data.events || []);
+                autoFillFromMatchData(data, selectedMatch);
+            }
+        } catch (error) {
+            console.error('Error refreshing match:', error);
+        } finally {
+            setLoadingMatch(false);
         }
     };
 
@@ -1308,26 +1530,67 @@ export default function TemplatesPage() {
         return <LoginPage />;
     }
 
-    if (loading) {
+    // Show live matches page if no match is selected
+    if (!selectedMatch) {
+        return (
+            <div className="relative">
+                <LiveMatches onSelectMatch={handleSelectMatch} />
+                <button
+                    onClick={logout}
+                    className="absolute top-6 right-6 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition text-sm"
+                >
+                    Logout
+                </button>
+            </div>
+        );
+    }
+
+    if (loading || loadingMatch) {
         return (
             <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-                <div className="animate-spin w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full"></div>
+                <div className="text-center">
+                    <div className="animate-spin w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-gray-400">{loadingMatch ? 'Loading match data...' : 'Loading...'}</p>
+                </div>
             </div>
         );
     }
 
     return (
         <div className="min-h-screen bg-gray-900 text-white p-6">
-            {/* Header with Title and Logout */}
+            {/* Header with Match Info and Actions */}
             <div className="flex items-center justify-between mb-6">
-                <div className="w-20"></div>
-                <h1 className="text-3xl font-bold text-center">ICC Cricket Social Media Templates</h1>
                 <button
-                    onClick={logout}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition text-sm"
+                    onClick={handleBackToMatches}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition text-sm"
                 >
-                    Logout
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Matches
                 </button>
+                <div className="text-center">
+                    <h1 className="text-xl font-bold">{selectedMatch.team1.name} vs {selectedMatch.team2.name}</h1>
+                    <p className="text-gray-400 text-sm">{selectedMatch.matchDesc} • {selectedMatch.seriesName}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={refreshMatchData}
+                        disabled={loadingMatch}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg font-medium transition text-sm flex items-center gap-2"
+                    >
+                        <svg className={`w-4 h-4 ${loadingMatch ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                    <button
+                        onClick={logout}
+                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition text-sm"
+                    >
+                        Logout
+                    </button>
+                </div>
             </div>
 
             {/* Template Selector */}
