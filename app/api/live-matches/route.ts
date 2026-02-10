@@ -24,7 +24,12 @@ async function callCricbuzzAPI(endpoint: string, revalidateSeconds: number = 20,
             (fetchOptions as any).next = { revalidate: revalidateSeconds };
         }
 
-        const response = await fetch(`https://${RAPIDAPI_HOST}${endpoint}`, fetchOptions);
+        // Add timestamp for cache-busting if noCache is true
+        const url = noCache
+            ? `https://${RAPIDAPI_HOST}${endpoint}?_t=${Date.now()}`
+            : `https://${RAPIDAPI_HOST}${endpoint}`;
+
+        const response = await fetch(url, fetchOptions);
 
         if (!response.ok) {
             throw new Error(`API error: ${response.status}`);
@@ -94,7 +99,11 @@ function parseMatch(matchInfo: any, matchScore: any, seriesName: string, teamLog
     const state = matchInfo.state;
     let category: 'live' | 'completed' | 'upcoming' = 'upcoming';
 
-    if (state === 'In Progress') {
+    // A match is live if it's in progress OR during any break/interruption
+    // This includes innings breaks, lunch, tea, drinks, stumps, etc.
+    const liveStates = ['In Progress', 'Innings Break', 'Lunch', 'Tea', 'Dinner', 'Drinks', 'Stumps'];
+
+    if (liveStates.includes(state)) {
         category = 'live';
     } else if (state === 'Complete') {
         category = 'completed';
@@ -134,7 +143,7 @@ function parseMatch(matchInfo: any, matchScore: any, seriesName: string, teamLog
         venue: matchInfo.venueInfo?.ground,
         city: matchInfo.venueInfo?.city,
         startDate: matchInfo.startDate,
-        isLive: state === 'In Progress',
+        isLive: liveStates.includes(state),
         isCompleted: state === 'Complete',
         score: matchScore ? {
             team1Score: matchScore.team1Score?.inngs1 ? {
@@ -216,6 +225,10 @@ export async function GET(request: NextRequest) {
         }
 
         // FULL MODE: Fetch all matches (initial load or every 15 minutes)
+        // Each API is used for its specific purpose:
+        // - live API: only for live matches
+        // - recent API: only for completed matches
+        // - upcoming API: only for upcoming matches
         const [liveData, recentData, upcomingData] = await Promise.all([
             callCricbuzzAPI('/matches/v1/live', 20),
             callCricbuzzAPI('/matches/v1/recent', 900), // Cache 15 minutes
@@ -226,20 +239,29 @@ export async function GET(request: NextRequest) {
         const recentMatches = extractMatches(recentData, teamLogos);
         const upcomingMatches = extractMatches(upcomingData, teamLogos);
 
-        // Combine and deduplicate by matchId
-        const matchMap = new Map<number, any>();
-        [...liveMatches, ...recentMatches, ...upcomingMatches].forEach(match => {
-            if (!matchMap.has(match.matchId)) {
-                matchMap.set(match.matchId, match);
-            }
-        });
+        // Use each API for its specific category - no mixing
+        // Live: only from live API (state = 'In Progress')
+        const live = liveMatches.filter(m => m.category === 'live');
 
-        const allMatches = Array.from(matchMap.values());
+        // Completed: only from recent API (state = 'Complete')
+        const completedFromRecent = recentMatches.filter(m => m.category === 'completed');
 
-        const live = allMatches.filter(m => m.category === 'live');
-        const completed = allMatches.filter(m => m.category === 'completed');
-        const upcoming = allMatches.filter(m => m.category === 'upcoming');
+        // Upcoming: only from upcoming API (state = 'Preview', 'Scheduled', etc.)
+        const upcomingFromUpcoming = upcomingMatches.filter(m => m.category === 'upcoming');
 
+        // Deduplicate within each category
+        const dedupeById = (matches: any[]) => {
+            const map = new Map<number, any>();
+            matches.forEach(m => {
+                if (!map.has(m.matchId)) map.set(m.matchId, m);
+            });
+            return Array.from(map.values());
+        };
+
+        const completed = dedupeById(completedFromRecent);
+        const upcoming = dedupeById(upcomingFromUpcoming);
+
+        // Sort each category
         live.sort((a, b) => (a.startDate || 0) - (b.startDate || 0));
         completed.sort((a, b) => getMatchNumber(b.matchDesc) - getMatchNumber(a.matchDesc));
         upcoming.sort((a, b) => (a.startDate || 0) - (b.startDate || 0));
@@ -254,7 +276,7 @@ export async function GET(request: NextRequest) {
                 live: live.length,
                 completed: completed.length,
                 upcoming: upcoming.length,
-                total: allMatches.length
+                total: live.length + completed.length + upcoming.length
             }
         });
 

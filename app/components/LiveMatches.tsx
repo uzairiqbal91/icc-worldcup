@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 
 interface Team {
     id: number;
@@ -10,9 +10,9 @@ interface Team {
 }
 
 interface Score {
-    runs: number;
-    wickets: number;
-    overs: number;
+    runs?: number;
+    wickets?: number;
+    overs?: number;
 }
 
 interface Match {
@@ -55,6 +55,9 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
     const lastFullFetchRef = useRef<number>(0);
     const isVisibleRef = useRef<boolean>(true);
 
+    // Cache to track highest scores seen - prevents backwards movement
+    const highestScoresRef = useRef<Map<number, { t1: number, t2: number }>>(new Map());
+
     // Fetch all matches (full mode) - called on init and every 5 minutes
     const fetchFullData = async () => {
         try {
@@ -63,7 +66,48 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
             const data = await res.json();
 
             if (data.success) {
-                setLiveMatches(data.live || []);
+                // Update cache with scores from full data
+                data.live?.forEach((match: Match) => {
+                    const t1 = match.score?.team1Score?.runs ?? 0;
+                    const t2 = match.score?.team2Score?.runs ?? 0;
+                    const cached = highestScoresRef.current.get(match.matchId) || { t1: 0, t2: 0 };
+                    highestScoresRef.current.set(match.matchId, {
+                        t1: Math.max(cached.t1, t1),
+                        t2: Math.max(cached.t2, t2)
+                    });
+                });
+
+                // Save to localStorage
+                const cacheObj = Object.fromEntries(highestScoresRef.current);
+                localStorage.setItem('cricket_score_cache', JSON.stringify(cacheObj));
+
+                // Apply smart filtering to live matches (same as fetchLiveScores)
+                setLiveMatches(prev => {
+                    if (prev.length === 0) return data.live || [];
+
+                    const currentMap = new Map(prev.map((m: Match) => [m.matchId, m]));
+                    const newLive = data.live || [];
+
+                    return newLive.map((newMatch: Match) => {
+                        const currentMatch = currentMap.get(newMatch.matchId);
+                        if (!currentMatch) return newMatch;
+
+                        const newT1 = newMatch.score?.team1Score?.runs ?? 0;
+                        const newT2 = newMatch.score?.team2Score?.runs ?? 0;
+                        const currentT1 = currentMatch.score?.team1Score?.runs ?? 0;
+                        const currentT2 = currentMatch.score?.team2Score?.runs ?? 0;
+
+                        // Only update if scores increased
+                        if (newT1 >= currentT1 && newT2 >= currentT2) {
+                            return newMatch;
+                        }
+
+                        // Keep current if new scores are lower
+                        console.log(`[Full Refresh] Keeping higher scores for match ${newMatch.matchId}`);
+                        return currentMatch;
+                    });
+                });
+
                 setCompletedMatches(data.completed || []);
                 setUpcomingMatches(data.upcoming || []);
                 setError(null);
@@ -88,6 +132,26 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
         return t1 + t2;
     };
 
+    // Best Practice: Use useMemo to track highest scores seen
+    const reconciledLiveMatches = useMemo(() => {
+        return liveMatches.map(match => {
+            const matchId = match.matchId;
+            const newT1 = match.score?.team1Score?.runs ?? 0;
+            const newT2 = match.score?.team2Score?.runs ?? 0;
+
+            // Get cached highest scores
+            const cached = highestScoresRef.current.get(matchId) || { t1: 0, t2: 0 };
+            const highestT1 = Math.max(cached.t1, newT1);
+            const highestT2 = Math.max(cached.t2, newT2);
+
+            // Update cache with highest scores
+            highestScoresRef.current.set(matchId, { t1: highestT1, t2: highestT2 });
+
+            // Return match as-is (filtering happens in fetchLiveScores)
+            return match;
+        });
+    }, [liveMatches]);
+
     // Fetch only live scores (live mode) - called every 20 seconds
     const fetchLiveScores = async () => {
         try {
@@ -97,29 +161,76 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
             const data = await res.json();
 
             if (data.success) {
-                // Update only if new scores are >= current scores (prevent stale data)
+                // Smart update: only update if scores are moving forward, never backwards
                 const newLive = data.live || [];
+                console.log('[API] Received live matches:', newLive.length);
 
                 setLiveMatches(prev => {
-                    // Create a map of current matches for comparison
+                    if (prev.length === 0) return newLive;
+
                     const currentMap = new Map(prev.map(m => [m.matchId, m]));
+                    let hasChanges = false;
 
-                    return newLive.map((newMatch: Match) => {
+                    const updatedMatches = newLive.map((newMatch: Match) => {
                         const currentMatch = currentMap.get(newMatch.matchId);
-                        if (!currentMatch) return newMatch;
-
-                        // Only update if new score is >= current score
-                        const newRuns = getTotalRuns(newMatch);
-                        const currentRuns = getTotalRuns(currentMatch);
-
-                        if (newRuns >= currentRuns) {
+                        if (!currentMatch) {
+                            hasChanges = true;
                             return newMatch;
-                        } else {
-                            console.log(`[API] Ignoring stale score for match ${newMatch.matchId}: ${newRuns} < ${currentRuns}`);
-                            return currentMatch; // Keep current data
                         }
+
+                        // Always update if state changed
+                        if (newMatch.state !== currentMatch.state) {
+                            console.log(`[API] State changed: ${currentMatch.state} -> ${newMatch.state}`);
+                            hasChanges = true;
+                            return newMatch;
+                        }
+
+                        // Get scores from API
+                        const newT1Runs = newMatch.score?.team1Score?.runs ?? 0;
+                        const newT2Runs = newMatch.score?.team2Score?.runs ?? 0;
+
+                        // Get highest scores we've ever seen for this match
+                        const cached = highestScoresRef.current.get(newMatch.matchId) || { t1: 0, t2: 0 };
+                        const highestT1 = Math.max(cached.t1, newT1Runs);
+                        const highestT2 = Math.max(cached.t2, newT2Runs);
+
+                        // Update cache with new highest scores
+                        highestScoresRef.current.set(newMatch.matchId, { t1: highestT1, t2: highestT2 });
+
+                        // Check if scores actually increased from what we're currently showing
+                        const currentT1Runs = currentMatch.score?.team1Score?.runs ?? 0;
+                        const currentT2Runs = currentMatch.score?.team2Score?.runs ?? 0;
+
+                        // If new highest is greater than current, update
+                        if (highestT1 > currentT1Runs || highestT2 > currentT2Runs) {
+                            hasChanges = true;
+                            console.log(`[API] Score increased - T1: ${currentT1Runs}->${highestT1}, T2: ${currentT2Runs}->${highestT2}`);
+
+                            // Always return new match to trigger re-render
+                            return newMatch;
+                        }
+
+                        // If API sent lower scores, ignore completely
+                        if (newT1Runs < currentT1Runs || newT2Runs < currentT2Runs) {
+                            console.log(`[API] Ignoring stale data - API sent T1:${newT1Runs} T2:${newT2Runs}, keeping T1:${currentT1Runs} T2:${currentT2Runs}`);
+                        }
+
+                        // No change, keep current
+                        return currentMatch;
                     });
+
+                    // Only update state if there were actual changes
+                    if (!hasChanges) {
+                        console.log('[API] No changes detected, skipping state update');
+                        return prev;
+                    }
+
+                    return updatedMatches;
                 });
+
+                // Save updated cache to localStorage
+                const cacheObj = Object.fromEntries(highestScoresRef.current);
+                localStorage.setItem('cricket_score_cache', JSON.stringify(cacheObj));
 
                 // If a match just completed, trigger full refresh
                 if (data.hasNewlyCompleted) {
@@ -167,6 +278,18 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
 
     // Initial fetch and setup polling
     useEffect(() => {
+        // Restore score cache from localStorage
+        try {
+            const cached = localStorage.getItem('cricket_score_cache');
+            if (cached) {
+                const cacheObj = JSON.parse(cached);
+                highestScoresRef.current = new Map(Object.entries(cacheObj).map(([k, v]: any) => [parseInt(k), v]));
+                console.log('[Cache] Restored score cache from localStorage');
+            }
+        } catch (e) {
+            console.error('[Cache] Failed to restore cache:', e);
+        }
+
         const init = async () => {
             const hasLive = await fetchFullData();
 
@@ -264,7 +387,20 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
 
     const formatScore = (score: Score | null) => {
         if (!score) return '-';
-        return `${score.runs}/${score.wickets} (${score.overs})`;
+
+        const runs = score.runs ?? 0;
+        const wickets = score.wickets ?? 0; // Default to 0 if undefined
+        let overs = score.overs ?? 0;
+
+        // Convert overs: if it's X.6, make it (X+1).0 since each over has 6 balls
+        const oversPart = Math.floor(overs);
+        const ballsPart = Math.round((overs - oversPart) * 10);
+
+        if (ballsPart >= 6) {
+            overs = oversPart + 1;
+        }
+
+        return `${runs}/${wickets} (${overs})`;
     };
 
     const formatDate = (timestamp: number) => {
@@ -279,7 +415,7 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
 
     const getMatchesByTab = () => {
         switch (activeTab) {
-            case 'live': return liveMatches;
+            case 'live': return reconciledLiveMatches;
             case 'completed': return completedMatches;
             case 'upcoming': return upcomingMatches;
             default: return [];
@@ -337,7 +473,7 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
                     </div>
                     <div>
                         <p className="text-white font-bold text-lg">{match.team1.name}</p>
-                        {match.score?.team1Score && (
+                        {match.score?.team1Score && match.score.team1Score.runs !== undefined && (
                             <p className="text-green-400 font-mono text-xl">
                                 {formatScore(match.score.team1Score)}
                             </p>
@@ -345,10 +481,20 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
                     </div>
                 </div>
 
-                {/* VS */}
-                <div className="px-8">
+                {/* VS with Status */}
+                <div className="px-8 flex flex-col items-center gap-2">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-center">
                         <span className="text-white font-bold text-sm">VS</span>
+                    </div>
+                    {/* Status in Center */}
+                    <div className="text-sm text-center whitespace-nowrap">
+                        {match.isLive ? (
+                            <span className="text-yellow-400 font-semibold">{match.status || match.state || 'Live'}</span>
+                        ) : match.isCompleted ? (
+                            <span className="text-green-400 font-semibold">{match.status || 'Match Completed'}</span>
+                        ) : (
+                            <span className="text-gray-500">{formatDate(match.startDate)}</span>
+                        )}
                     </div>
                 </div>
 
@@ -356,7 +502,7 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
                 <div className="flex items-center gap-4 flex-1 justify-end text-right">
                     <div>
                         <p className="text-white font-bold text-lg">{match.team2.name}</p>
-                        {match.score?.team2Score && (
+                        {match.score?.team2Score && match.score.team2Score.runs !== undefined && (
                             <p className="text-green-400 font-mono text-xl">
                                 {formatScore(match.score.team2Score)}
                             </p>
@@ -379,19 +525,10 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
                 </div>
             </div>
 
-            {/* Match Status */}
-            <div className="mt-4 flex items-center justify-between">
+            {/* Venue Info at Bottom */}
+            <div className="mt-4 text-center">
                 <div className="text-gray-400 text-sm">
-                    {match.venue}, {match.city}
-                </div>
-                <div className="text-sm">
-                    {match.isLive ? (
-                        <span className="text-yellow-400">{match.status}</span>
-                    ) : match.isCompleted ? (
-                        <span className="text-green-400">{match.status}</span>
-                    ) : (
-                        <span className="text-gray-500">{formatDate(match.startDate)}</span>
-                    )}
+                    {match.venue || 'Venue TBD'}{match.city ? `, ${match.city}` : ''}
                 </div>
             </div>
 
@@ -474,32 +611,29 @@ export default function LiveMatches({ onSelectMatch }: LiveMatchesProps) {
                 <div className="flex gap-2 bg-gray-800/50 p-1 rounded-lg inline-flex">
                     <button
                         onClick={() => setActiveTab('live')}
-                        className={`px-6 py-3 rounded-lg font-medium transition flex items-center gap-2 ${
-                            activeTab === 'live'
-                                ? 'bg-green-600 text-white'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                        }`}
+                        className={`px-6 py-3 rounded-lg font-medium transition flex items-center gap-2 ${activeTab === 'live'
+                            ? 'bg-green-600 text-white'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                            }`}
                     >
                         <span className={`w-2 h-2 rounded-full ${liveMatches.length > 0 ? (activeTab === 'live' ? 'bg-white' : 'bg-red-500') + ' animate-pulse' : 'bg-gray-500'}`}></span>
                         Live ({liveMatches.length})
                     </button>
                     <button
                         onClick={() => setActiveTab('upcoming')}
-                        className={`px-6 py-3 rounded-lg font-medium transition ${
-                            activeTab === 'upcoming'
-                                ? 'bg-green-600 text-white'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                        }`}
+                        className={`px-6 py-3 rounded-lg font-medium transition ${activeTab === 'upcoming'
+                            ? 'bg-green-600 text-white'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                            }`}
                     >
                         Upcoming ({upcomingMatches.length})
                     </button>
                     <button
                         onClick={() => setActiveTab('completed')}
-                        className={`px-6 py-3 rounded-lg font-medium transition ${
-                            activeTab === 'completed'
-                                ? 'bg-green-600 text-white'
-                                : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                        }`}
+                        className={`px-6 py-3 rounded-lg font-medium transition ${activeTab === 'completed'
+                            ? 'bg-green-600 text-white'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                            }`}
                     >
                         Completed ({completedMatches.length})
                     </button>

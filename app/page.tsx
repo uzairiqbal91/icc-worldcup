@@ -437,19 +437,71 @@ export default function TemplatesPage() {
         }
     };
 
+    // Helper to find team by name (case-insensitive)
+    const findTeamByName = (teamName: string): Team | undefined => {
+        const normalizedName = teamName?.toLowerCase().trim();
+        return teams.find(t =>
+            t.name.toLowerCase() === normalizedName ||
+            t.short_name?.toLowerCase() === normalizedName
+        );
+    };
+
+    // Fetch and auto-select saved image for a template
+    const fetchAndAutoSelectImage = async (teamId: number, templateType: string, setImageFn: (url: string) => void) => {
+        try {
+            const params = new URLSearchParams();
+            params.append('team_id', teamId.toString());
+            params.append('image_type', 'template');
+            params.append('template_type', templateType);
+            const res = await fetch(`/api/template-images?${params.toString()}`);
+            const data = await res.json();
+            if (data.images && data.images.length > 0) {
+                setImageFn(data.images[0].image_url);
+                setIsTemplateFromGallery(true);
+            }
+        } catch (error) {
+            console.error(`Error fetching saved image for ${templateType}:`, error);
+        }
+    };
+
+    // Fetch and auto-select team logo
+    const fetchAndAutoSelectLogo = async (teamId: number, setLogoFn: (url: string) => void, setGalleryFlag?: (flag: boolean) => void) => {
+        try {
+            const params = new URLSearchParams();
+            params.append('team_id', teamId.toString());
+            params.append('image_type', 'logo');
+            const res = await fetch(`/api/template-images?${params.toString()}`);
+            const data = await res.json();
+            if (data.images && data.images.length > 0) {
+                setLogoFn(data.images[0].image_url);
+                if (setGalleryFlag) setGalleryFlag(true);
+            }
+        } catch (error) {
+            console.error('Error fetching saved logo:', error);
+        }
+    };
+
     // Handle match selection from LiveMatches
     const handleSelectMatch = async (match: LiveMatch) => {
         setSelectedMatch(match);
         setLoadingMatch(true);
 
         try {
-            const res = await fetch(`/api/match-details?matchId=${match.matchId}`);
-            const data = await res.json();
+            // For UPCOMING matches - don't call API, just auto-fill team names
+            if (match.category === 'upcoming') {
+                setMatchDetails(null);
+                setDetectedEvents([]);
+                await autoFillForUpcomingMatch(match);
+            } else {
+                // For LIVE and COMPLETED matches - call API for full data
+                const res = await fetch(`/api/match-details?matchId=${match.matchId}`);
+                const data = await res.json();
 
-            if (data.success) {
-                setMatchDetails(data);
-                setDetectedEvents(data.events || []);
-                autoFillFromMatchData(data, match);
+                if (data.success) {
+                    setMatchDetails(data);
+                    setDetectedEvents(data.events || []);
+                    await autoFillFromMatchData(data, match);
+                }
             }
         } catch (error) {
             console.error('Error fetching match details:', error);
@@ -458,22 +510,105 @@ export default function TemplatesPage() {
         }
     };
 
+    // Auto-fill for UPCOMING matches - only team names, no API call
+    const autoFillForUpcomingMatch = async (match: LiveMatch) => {
+        // Find teams in database
+        const dbTeam1 = findTeamByName(match.team1.name) || findTeamByName(match.team1.shortName);
+        const dbTeam2 = findTeamByName(match.team2.name) || findTeamByName(match.team2.shortName);
+
+        const team1Name = match.team1.name?.toUpperCase() || '';
+        const team2Name = match.team2.name?.toUpperCase() || '';
+
+        // Auto-select teams in dropdowns
+        if (dbTeam1) {
+            setSelectedTeam1(dbTeam1.team_id);
+            setTeam1Selection(dbTeam1.team_id);
+            await fetchAndAutoSelectLogo(dbTeam1.team_id, setTeam1LogoUrl, setIsTeam1LogoFromGallery);
+        }
+        if (dbTeam2) {
+            setSelectedTeam2(dbTeam2.team_id);
+            setTeam2Selection(dbTeam2.team_id);
+            await fetchAndAutoSelectLogo(dbTeam2.team_id, setTeam2LogoUrl, setIsTeam2LogoFromGallery);
+        }
+
+        // Fallback to API logos
+        if (!team1LogoUrl && match.team1.imageUrl) setTeam1LogoUrl(match.team1.imageUrl);
+        if (!team2LogoUrl && match.team2.imageUrl) setTeam2LogoUrl(match.team2.imageUrl);
+
+        // Fill all templates with just team names (no scores/data)
+        setTossForm({ tossWinner: team1Name, tossDecision: 'bat' });
+        setPlayingXIForm({ teamName: team1Name, opponent: team2Name, players: '' });
+        setPowerplayForm({ battingTeam: team1Name, score: 0, wickets: 0, overs: 0 });
+        setInningsEndForm({
+            battingTeam: team1Name, score: 0, wickets: 0, overs: 0, inningsNumber: 1,
+            batsman1Name: '', batsman1Runs: 0, batsman1Balls: 0,
+            batsman2Name: '', batsman2Runs: 0, batsman2Balls: 0,
+            bowler1Name: '', bowler1Wickets: 0, bowler1Runs: 0,
+            bowler2Name: '', bowler2Wickets: 0, bowler2Runs: 0,
+        });
+        setTargetForm({ chasingTeam: team2Name, target: 0 });
+        setFallOfWicketForm({ battingTeam: team1Name, score: 0, wickets: 0, overs: 0 });
+        setMilestoneForm({ playerFirstName: '', playerLastName: '', milestone: 50 });
+        setMatchResultForm({ winningTeam: team1Name, resultText: '' });
+
+        // Fetch template images if teams found
+        if (dbTeam1) {
+            await fetchAndAutoSelectImage(dbTeam1.team_id, 'toss', setTossLayerImage);
+            await fetchAndAutoSelectImage(dbTeam1.team_id, 'playing_xi', setPlayingXILayerImage);
+            await fetchAndAutoSelectImage(dbTeam1.team_id, 'powerplay', setPowerplayLayerImage);
+            await fetchAndAutoSelectImage(dbTeam1.team_id, 'innings_end', setInningsEndLayerImage);
+            await fetchAndAutoSelectImage(dbTeam1.team_id, 'fall_of_wicket', setFallOfWicketLayerImage);
+            await fetchAndAutoSelectImage(dbTeam1.team_id, 'match_result', setMatchResultLayerImage);
+        }
+        if (dbTeam2) {
+            await fetchAndAutoSelectImage(dbTeam2.team_id, 'target', setTargetLayerImage);
+        }
+    };
+
     // Auto-fill form data from live match
-    const autoFillFromMatchData = (data: MatchDetails, match: LiveMatch) => {
-        // Set team logos
-        if (match.team1.imageUrl) setTeam1LogoUrl(match.team1.imageUrl);
-        if (match.team2.imageUrl) setTeam2LogoUrl(match.team2.imageUrl);
+    const autoFillFromMatchData = async (data: MatchDetails, match: LiveMatch) => {
+        // Find teams in database
+        const dbTeam1 = findTeamByName(match.team1.name) || findTeamByName(match.team1.shortName);
+        const dbTeam2 = findTeamByName(match.team2.name) || findTeamByName(match.team2.shortName);
+
+        // Auto-select teams in dropdowns
+        if (dbTeam1) {
+            setSelectedTeam1(dbTeam1.team_id);
+            setTeam1Selection(dbTeam1.team_id);
+            // Fetch and auto-select logo
+            await fetchAndAutoSelectLogo(dbTeam1.team_id, setTeam1LogoUrl, setIsTeam1LogoFromGallery);
+        }
+        if (dbTeam2) {
+            setSelectedTeam2(dbTeam2.team_id);
+            setTeam2Selection(dbTeam2.team_id);
+            // Fetch and auto-select logo
+            await fetchAndAutoSelectLogo(dbTeam2.team_id, setTeam2LogoUrl, setIsTeam2LogoFromGallery);
+        }
+
+        // Fallback to API logos if no saved logos
+        if (!team1LogoUrl && match.team1.imageUrl) setTeam1LogoUrl(match.team1.imageUrl);
+        if (!team2LogoUrl && match.team2.imageUrl) setTeam2LogoUrl(match.team2.imageUrl);
+
+        const team1Name = data.team1?.name?.toUpperCase() || match.team1.name?.toUpperCase() || '';
+        const team2Name = data.team2?.name?.toUpperCase() || match.team2.name?.toUpperCase() || '';
 
         // Auto-fill toss
         if (data.toss) {
             setTossForm({
-                tossWinner: data.toss.winner?.toUpperCase() || '',
+                tossWinner: data.toss.winner?.toUpperCase() || team1Name,
                 tossDecision: data.toss.decision || 'bat',
             });
+            // Auto-select toss template image
+            const tossWinnerTeam = findTeamByName(data.toss.winner || '');
+            if (tossWinnerTeam) {
+                await fetchAndAutoSelectImage(tossWinnerTeam.team_id, 'toss', setTossLayerImage);
+            }
+        } else {
+            setTossForm({ tossWinner: team1Name, tossDecision: 'bat' });
         }
 
         // Auto-fill Playing XI
-        if (data.team1.players.length > 0) {
+        if (data.team1?.players?.length > 0) {
             const playersText = data.team1.players.map(p => {
                 let suffix = '';
                 if (p.isCaptain && p.isKeeper) suffix = ' (C & WK)';
@@ -483,92 +618,157 @@ export default function TemplatesPage() {
             }).join('\n');
 
             setPlayingXIForm({
-                teamName: data.team1.name?.toUpperCase() || '',
-                opponent: data.team2.name?.toUpperCase() || '',
+                teamName: team1Name,
+                opponent: team2Name,
                 players: playersText,
             });
+
+            // Auto-select playing XI image
+            if (dbTeam1) {
+                await fetchAndAutoSelectImage(dbTeam1.team_id, 'playing_xi', setPlayingXILayerImage);
+            }
+        } else {
+            setPlayingXIForm({ teamName: team1Name, opponent: team2Name, players: '' });
         }
 
         // Auto-fill from innings data
         if (data.innings && data.innings.length > 0) {
             const firstInnings = data.innings[0];
             const secondInnings = data.innings[1];
+            const currentInnings = data.currentInnings || firstInnings;
 
-            // Powerplay (first innings, first 6 overs)
+            // Powerplay
             if (firstInnings) {
+                const powerplayTeam = firstInnings.battingTeam?.toUpperCase() || team1Name;
                 setPowerplayForm({
-                    battingTeam: firstInnings.battingTeam?.toUpperCase() || '',
+                    battingTeam: powerplayTeam,
                     score: firstInnings.score || 0,
                     wickets: firstInnings.wickets || 0,
                     overs: Math.min(firstInnings.overs || 0, 6),
                 });
+                // Auto-select powerplay image
+                const ppTeam = findTeamByName(firstInnings.battingTeam || '');
+                if (ppTeam) {
+                    await fetchAndAutoSelectImage(ppTeam.team_id, 'powerplay', setPowerplayLayerImage);
+                }
+            }
 
-                // Innings End (if complete)
-                if (firstInnings.isComplete) {
-                    const topBatsmen = firstInnings.batsmen?.slice(0, 2) || [];
-                    const topBowlers = firstInnings.bowlers?.slice(0, 2) || [];
+            // Innings End
+            if (firstInnings) {
+                const topBatsmen = firstInnings.batsmen?.slice(0, 2) || [];
+                const topBowlers = firstInnings.bowlers?.slice(0, 2) || [];
 
-                    setInningsEndForm({
-                        battingTeam: firstInnings.battingTeam?.toUpperCase() || '',
-                        score: firstInnings.score || 0,
-                        wickets: firstInnings.wickets || 0,
-                        overs: firstInnings.overs || 0,
-                        inningsNumber: 1,
-                        batsman1Name: topBatsmen[0]?.name || '',
-                        batsman1Runs: topBatsmen[0]?.runs || 0,
-                        batsman1Balls: topBatsmen[0]?.balls || 0,
-                        batsman2Name: topBatsmen[1]?.name || '',
-                        batsman2Runs: topBatsmen[1]?.runs || 0,
-                        batsman2Balls: topBatsmen[1]?.balls || 0,
-                        bowler1Name: topBowlers[0]?.name || '',
-                        bowler1Wickets: topBowlers[0]?.wickets || 0,
-                        bowler1Runs: topBowlers[0]?.runs || 0,
-                        bowler2Name: topBowlers[1]?.name || '',
-                        bowler2Wickets: topBowlers[1]?.wickets || 0,
-                        bowler2Runs: topBowlers[1]?.runs || 0,
-                    });
+                setInningsEndForm({
+                    battingTeam: firstInnings.battingTeam?.toUpperCase() || team1Name,
+                    score: firstInnings.score || 0,
+                    wickets: firstInnings.wickets || 0,
+                    overs: firstInnings.overs || 0,
+                    inningsNumber: 1,
+                    batsman1Name: topBatsmen[0]?.name || '',
+                    batsman1Runs: topBatsmen[0]?.runs || 0,
+                    batsman1Balls: topBatsmen[0]?.balls || 0,
+                    batsman2Name: topBatsmen[1]?.name || '',
+                    batsman2Runs: topBatsmen[1]?.runs || 0,
+                    batsman2Balls: topBatsmen[1]?.balls || 0,
+                    bowler1Name: topBowlers[0]?.name || '',
+                    bowler1Wickets: topBowlers[0]?.wickets || 0,
+                    bowler1Runs: topBowlers[0]?.runs || 0,
+                    bowler2Name: topBowlers[1]?.name || '',
+                    bowler2Wickets: topBowlers[1]?.wickets || 0,
+                    bowler2Runs: topBowlers[1]?.runs || 0,
+                });
 
-                    // Target
-                    setTargetForm({
-                        chasingTeam: secondInnings?.battingTeam?.toUpperCase() || data.team2.name?.toUpperCase() || '',
-                        target: (firstInnings.score || 0) + 1,
-                    });
+                // Auto-select innings end image
+                const ieTeam = findTeamByName(firstInnings.battingTeam || '');
+                if (ieTeam) {
+                    await fetchAndAutoSelectImage(ieTeam.team_id, 'innings_end', setInningsEndLayerImage);
                 }
 
-                // Fall of wicket (current innings)
-                const currentInnings = data.currentInnings || firstInnings;
+                // Target
+                const chasingTeam = secondInnings?.battingTeam?.toUpperCase() || team2Name;
+                setTargetForm({
+                    chasingTeam: chasingTeam,
+                    target: (firstInnings.score || 0) + 1,
+                });
+
+                // Auto-select target image
+                const targetTeam = findTeamByName(secondInnings?.battingTeam || data.team2?.name || '');
+                if (targetTeam) {
+                    await fetchAndAutoSelectImage(targetTeam.team_id, 'target', setTargetLayerImage);
+                }
+            }
+
+            // Fall of wicket (current innings)
+            if (currentInnings) {
                 setFallOfWicketForm({
-                    battingTeam: currentInnings.battingTeam?.toUpperCase() || '',
+                    battingTeam: currentInnings.battingTeam?.toUpperCase() || team1Name,
                     score: currentInnings.score || 0,
                     wickets: currentInnings.wickets || 0,
                     overs: currentInnings.overs || 0,
                 });
+                // Auto-select fall of wicket image
+                const fowTeam = findTeamByName(currentInnings.battingTeam || '');
+                if (fowTeam) {
+                    await fetchAndAutoSelectImage(fowTeam.team_id, 'fall_of_wicket', setFallOfWicketLayerImage);
+                }
             }
 
-            // Check for milestones
+            // Check for milestones - find highest scorer with 50+
+            let highestMilestone: { name: string; runs: number; teamName: string } | null = null;
             data.innings.forEach(inn => {
                 inn.batsmen?.forEach(bat => {
-                    if (bat.runs >= 50) {
-                        const nameParts = bat.name.split(' ');
-                        setMilestoneForm({
-                            playerFirstName: nameParts[0] || '',
-                            playerLastName: nameParts.slice(1).join(' ') || nameParts[0],
-                            milestone: bat.runs >= 100 ? 100 : 50,
-                        });
+                    if (bat.runs >= 50 && (!highestMilestone || bat.runs > highestMilestone.runs)) {
+                        highestMilestone = { name: bat.name, runs: bat.runs, teamName: inn.battingTeam || '' };
                     }
                 });
             });
+
+            if (highestMilestone) {
+                const nameParts = highestMilestone.name.split(' ');
+                setMilestoneForm({
+                    playerFirstName: nameParts[0] || '',
+                    playerLastName: nameParts.slice(1).join(' ') || nameParts[0],
+                    milestone: highestMilestone.runs >= 100 ? 100 : 50,
+                });
+                // Set milestone team
+                const milestoneTeam = findTeamByName(highestMilestone.teamName);
+                if (milestoneTeam) {
+                    setMilestoneTeamId(milestoneTeam.team_id);
+                    await fetchAndAutoSelectImage(milestoneTeam.team_id, 'milestone', setMilestoneLayerImage);
+                }
+            } else {
+                setMilestoneForm({ playerFirstName: '', playerLastName: '', milestone: 50 });
+            }
+        } else {
+            // No innings data - set defaults
+            setPowerplayForm({ battingTeam: team1Name, score: 0, wickets: 0, overs: 0 });
+            setInningsEndForm({
+                battingTeam: team1Name, score: 0, wickets: 0, overs: 0, inningsNumber: 1,
+                batsman1Name: '', batsman1Runs: 0, batsman1Balls: 0,
+                batsman2Name: '', batsman2Runs: 0, batsman2Balls: 0,
+                bowler1Name: '', bowler1Wickets: 0, bowler1Runs: 0,
+                bowler2Name: '', bowler2Wickets: 0, bowler2Runs: 0,
+            });
+            setTargetForm({ chasingTeam: team2Name, target: 0 });
+            setFallOfWicketForm({ battingTeam: team1Name, score: 0, wickets: 0, overs: 0 });
+            setMilestoneForm({ playerFirstName: '', playerLastName: '', milestone: 50 });
         }
 
         // Match result
         if (data.state === 'Complete' && data.result) {
             const resultParts = data.result.split(' won ');
-            if (resultParts.length >= 1) {
-                setMatchResultForm({
-                    winningTeam: resultParts[0]?.toUpperCase() || '',
-                    resultText: 'won ' + (resultParts[1] || ''),
-                });
+            const winningTeamName = resultParts[0]?.toUpperCase() || '';
+            setMatchResultForm({
+                winningTeam: winningTeamName,
+                resultText: 'won ' + (resultParts[1] || ''),
+            });
+            // Auto-select match result image
+            const winnerTeam = findTeamByName(resultParts[0] || '');
+            if (winnerTeam) {
+                await fetchAndAutoSelectImage(winnerTeam.team_id, 'match_result', setMatchResultLayerImage);
             }
+        } else {
+            setMatchResultForm({ winningTeam: team1Name, resultText: '' });
         }
     };
 
@@ -589,7 +789,7 @@ export default function TemplatesPage() {
             if (data.success) {
                 setMatchDetails(data);
                 setDetectedEvents(data.events || []);
-                autoFillFromMatchData(data, selectedMatch);
+                await autoFillFromMatchData(data, selectedMatch);
             }
         } catch (error) {
             console.error('Error refreshing match:', error);
