@@ -309,8 +309,8 @@ export default function TemplatesPage() {
     const [bowlingTeam, setBowlingTeam] = useState('');
 
     // Store match batsmen and bowlers for dropdowns (from live API data)
-    const [matchBatsmen, setMatchBatsmen] = useState<{ id: number; name: string; runs: number; balls: number }[]>([]);
-    const [matchBowlers, setMatchBowlers] = useState<{ id: number; name: string; wickets: number; runs: number; overs: number }[]>([]);
+    const [matchBatsmen, setMatchBatsmen] = useState<{ id?: number; name: string; runs: number; balls: number }[]>([]);
+    const [matchBowlers, setMatchBowlers] = useState<{ id?: number; name: string; wickets: number; runs: number; overs?: number }[]>([]);
 
     const [selectedPlayingXIPlayers, setSelectedPlayingXIPlayers] = useState<number[]>([]);
 
@@ -661,8 +661,7 @@ export default function TemplatesPage() {
             });
             playersText = sortedPlayers.map(p => {
                 let suffix = '';
-                if (p.role === 'Captain' && p.role === 'Wicket Keeper') suffix = ' (C & WK)';
-                else if (p.role === 'Captain') suffix = ' (C)';
+                if (p.role === 'Captain') suffix = ' (C)';
                 else if (p.role === 'Wicket Keeper') suffix = ' (WK)';
                 return p.name + suffix;
             }).join('\n');
@@ -743,7 +742,7 @@ export default function TemplatesPage() {
                 const liveWickets = liveFirstInningsScore?.wickets || 0;
                 const finalWickets = Math.max(scorecardWickets, liveWickets);
 
-                const scorecardOvers = parseFloat(firstInnings.overs) || 0;
+                const scorecardOvers = Number(firstInnings.overs) || 0;
                 const liveOvers = liveFirstInningsScore?.overs || 0;
                 const finalOvers = Math.max(scorecardOvers, liveOvers);
 
@@ -827,7 +826,7 @@ export default function TemplatesPage() {
                     battingTeam: currentInnings.battingTeam?.toUpperCase() || team1Name,
                     score: Number(currentInnings.score) || 0,
                     wickets: Number(currentInnings.wickets) || 0,
-                    overs: parseFloat(currentInnings.overs) || 0,
+                    overs: Number(currentInnings.overs) || 0,
                 });
                 // Auto-select fall of wicket image
                 const fowTeam = findTeamByName(currentInnings.battingTeam || '');
@@ -837,29 +836,35 @@ export default function TemplatesPage() {
             }
 
             // Check for milestones - PRIORITIZE CURRENT BATTING TEAM
-            let highestMilestone: { name: string; runs: number; teamName: string } | null = null;
+            // Collect all milestones first
+            const allMilestones: { name: string; runs: number; teamName: string }[] = [];
 
             // First check current batting team for milestones
             if (currentInnings?.batsmen) {
                 currentInnings.batsmen.forEach((bat: any) => {
-                    if (bat.runs >= 50 && (!highestMilestone || bat.runs > highestMilestone.runs)) {
-                        highestMilestone = { name: bat.name, runs: bat.runs, teamName: currentInnings.battingTeam || '' };
+                    if (bat.runs >= 50) {
+                        allMilestones.push({ name: bat.name, runs: bat.runs, teamName: currentInnings.battingTeam || '' });
                     }
                 });
             }
 
             // If no milestone in current innings, check other innings
-            if (!highestMilestone) {
+            if (allMilestones.length === 0) {
                 data.innings.forEach((inn: any) => {
                     // Skip current innings as we already checked it
                     if (inn.inningsId === currentInnings?.inningsId) return;
                     inn.batsmen?.forEach((bat: any) => {
-                        if (bat.runs >= 50 && (!highestMilestone || bat.runs > highestMilestone.runs)) {
-                            highestMilestone = { name: bat.name, runs: bat.runs, teamName: inn.battingTeam || '' };
+                        if (bat.runs >= 50) {
+                            allMilestones.push({ name: bat.name, runs: bat.runs, teamName: inn.battingTeam || '' });
                         }
                     });
                 });
             }
+
+            // Find highest milestone
+            const highestMilestone = allMilestones.length > 0
+                ? allMilestones.reduce((prev, curr) => curr.runs > prev.runs ? curr : prev)
+                : null;
 
             if (highestMilestone) {
                 const nameParts = highestMilestone.name.split(' ');
@@ -1582,7 +1587,7 @@ export default function TemplatesPage() {
                                                     battingTeam: inningsData.battingTeam?.toUpperCase() || '',
                                                     score: Number(inningsData.score) || 0,
                                                     wickets: Number(inningsData.wickets) || 0,
-                                                    overs: parseFloat(inningsData.overs) || 0,
+                                                    overs: Number(inningsData.overs) || 0,
                                                     inningsNumber: n,
                                                     batsman1Name: topBatsmen[0]?.name || '',
                                                     batsman1Runs: Number(topBatsmen[0]?.runs) || 0,
@@ -1774,7 +1779,7 @@ export default function TemplatesPage() {
                                 clearCurrentTemplateImage();
 
                                 // Auto-calculate target from match data
-                                if (selectedTeamName && matchDetails?.innings?.length >= 1) {
+                                if (selectedTeamName && matchDetails?.innings && matchDetails.innings.length >= 1) {
                                     // Find the innings where selected team is batting (chasing)
                                     const chasingInnings = matchDetails.innings.find(
                                         inn => inn.battingTeam?.toUpperCase() === selectedTeamName ||
@@ -2016,7 +2021,7 @@ export default function TemplatesPage() {
                                             ...f,
                                             score: Number(inningsData.score) || 0,
                                             wickets: Number(inningsData.wickets) || 0,
-                                            overs: parseFloat(inningsData.overs) || 0,
+                                            overs: Number(inningsData.overs) || 0,
                                         }));
                                     }
                                 }

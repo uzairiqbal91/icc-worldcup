@@ -26,10 +26,10 @@ async function callCricbuzzAPI(endpoint: string) {
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { matchId: string } }
+    { params }: { params: Promise<{ matchId: string }> }
 ) {
     try {
-        const { matchId } = params;
+        const { matchId } = await params;
 
         // Fetch match info and scorecard in parallel
         const [matchInfoData, scorecardData] = await Promise.all([
