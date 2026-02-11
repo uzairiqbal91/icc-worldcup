@@ -60,6 +60,10 @@ interface MatchDetails {
         wickets: number;
         overs: number;
         target: number | null;
+        // Powerplay specific data
+        powerplayScore: number | null;
+        powerplayWickets: number | null;
+        powerplayOvers: number | null;
         isComplete: boolean;
         isPowerplayComplete: boolean;
         batsmen: Array<{ name: string; runs: number; balls: number }>;
@@ -304,6 +308,10 @@ export default function TemplatesPage() {
     const [selectedBowler2, setSelectedBowler2] = useState<number | null>(null);
     const [bowlingTeam, setBowlingTeam] = useState('');
 
+    // Store match batsmen and bowlers for dropdowns (from live API data)
+    const [matchBatsmen, setMatchBatsmen] = useState<{ id: number; name: string; runs: number; balls: number }[]>([]);
+    const [matchBowlers, setMatchBowlers] = useState<{ id: number; name: string; wickets: number; runs: number; overs: number }[]>([]);
+
     const [selectedPlayingXIPlayers, setSelectedPlayingXIPlayers] = useState<number[]>([]);
 
     useEffect(() => {
@@ -516,8 +524,9 @@ export default function TemplatesPage() {
         const dbTeam1 = findTeamByName(match.team1.name) || findTeamByName(match.team1.shortName);
         const dbTeam2 = findTeamByName(match.team2.name) || findTeamByName(match.team2.shortName);
 
-        const team1Name = match.team1.name?.toUpperCase() || '';
-        const team2Name = match.team2.name?.toUpperCase() || '';
+        // Use database team names for dropdowns (they need to match exactly)
+        const team1Name = dbTeam1?.name?.toUpperCase() || match.team1.name?.toUpperCase() || '';
+        const team2Name = dbTeam2?.name?.toUpperCase() || match.team2.name?.toUpperCase() || '';
 
         // Auto-select teams in dropdowns
         if (dbTeam1) {
@@ -535,9 +544,26 @@ export default function TemplatesPage() {
         if (!team1LogoUrl && match.team1.imageUrl) setTeam1LogoUrl(match.team1.imageUrl);
         if (!team2LogoUrl && match.team2.imageUrl) setTeam2LogoUrl(match.team2.imageUrl);
 
+        // Get players from database for upcoming matches
+        let playersText = '';
+        if (dbTeam1) {
+            const teamPlayers = players.filter(p => p.team_id === dbTeam1.team_id);
+            const sortedPlayers = teamPlayers.sort((a, b) => {
+                if (a.role === 'Captain') return -1;
+                if (b.role === 'Captain') return 1;
+                return 0;
+            });
+            playersText = sortedPlayers.map(p => {
+                let suffix = '';
+                if (p.role === 'Captain') suffix = ' (C)';
+                else if (p.role === 'Wicket Keeper') suffix = ' (WK)';
+                return p.name + suffix;
+            }).join('\n');
+        }
+
         // Fill all templates with just team names (no scores/data)
         setTossForm({ tossWinner: team1Name, tossDecision: 'bat' });
-        setPlayingXIForm({ teamName: team1Name, opponent: team2Name, players: '' });
+        setPlayingXIForm({ teamName: team1Name, opponent: team2Name, players: playersText });
         setPowerplayForm({ battingTeam: team1Name, score: 0, wickets: 0, overs: 0 });
         setInningsEndForm({
             battingTeam: team1Name, score: 0, wickets: 0, overs: 0, inningsNumber: 1,
@@ -551,6 +577,11 @@ export default function TemplatesPage() {
         setMilestoneForm({ playerFirstName: '', playerLastName: '', milestone: 50 });
         setMatchResultForm({ winningTeam: team1Name, resultText: '' });
 
+        // Set default milestone team to team1 for upcoming matches
+        if (dbTeam1) {
+            setMilestoneTeamId(dbTeam1.team_id);
+        }
+
         // Fetch template images if teams found
         if (dbTeam1) {
             await fetchAndAutoSelectImage(dbTeam1.team_id, 'toss', setTossLayerImage);
@@ -559,6 +590,7 @@ export default function TemplatesPage() {
             await fetchAndAutoSelectImage(dbTeam1.team_id, 'innings_end', setInningsEndLayerImage);
             await fetchAndAutoSelectImage(dbTeam1.team_id, 'fall_of_wicket', setFallOfWicketLayerImage);
             await fetchAndAutoSelectImage(dbTeam1.team_id, 'match_result', setMatchResultLayerImage);
+            await fetchAndAutoSelectImage(dbTeam1.team_id, 'milestone', setMilestoneLayerImage);
         }
         if (dbTeam2) {
             await fetchAndAutoSelectImage(dbTeam2.team_id, 'target', setTargetLayerImage);
@@ -589,8 +621,9 @@ export default function TemplatesPage() {
         if (!team1LogoUrl && match.team1.imageUrl) setTeam1LogoUrl(match.team1.imageUrl);
         if (!team2LogoUrl && match.team2.imageUrl) setTeam2LogoUrl(match.team2.imageUrl);
 
-        const team1Name = data.team1?.name?.toUpperCase() || match.team1.name?.toUpperCase() || '';
-        const team2Name = data.team2?.name?.toUpperCase() || match.team2.name?.toUpperCase() || '';
+        // Use database team names for dropdowns (they need to match exactly)
+        const team1Name = dbTeam1?.name?.toUpperCase() || data.team1?.name?.toUpperCase() || match.team1.name?.toUpperCase() || '';
+        const team2Name = dbTeam2?.name?.toUpperCase() || data.team2?.name?.toUpperCase() || match.team2.name?.toUpperCase() || '';
 
         // Auto-fill toss
         if (data.toss) {
@@ -608,27 +641,42 @@ export default function TemplatesPage() {
         }
 
         // Auto-fill Playing XI
+        let playersText = '';
         if (data.team1?.players?.length > 0) {
-            const playersText = data.team1.players.map(p => {
+            // Use players from match API
+            playersText = data.team1.players.map(p => {
                 let suffix = '';
                 if (p.isCaptain && p.isKeeper) suffix = ' (C & WK)';
                 else if (p.isCaptain) suffix = ' (C)';
                 else if (p.isKeeper) suffix = ' (WK)';
                 return p.name + suffix;
             }).join('\n');
-
-            setPlayingXIForm({
-                teamName: team1Name,
-                opponent: team2Name,
-                players: playersText,
+        } else if (dbTeam1) {
+            // Fallback to database players for upcoming matches
+            const teamPlayers = players.filter(p => p.team_id === dbTeam1.team_id);
+            const sortedPlayers = teamPlayers.sort((a, b) => {
+                if (a.role === 'Captain') return -1;
+                if (b.role === 'Captain') return 1;
+                return 0;
             });
+            playersText = sortedPlayers.map(p => {
+                let suffix = '';
+                if (p.role === 'Captain' && p.role === 'Wicket Keeper') suffix = ' (C & WK)';
+                else if (p.role === 'Captain') suffix = ' (C)';
+                else if (p.role === 'Wicket Keeper') suffix = ' (WK)';
+                return p.name + suffix;
+            }).join('\n');
+        }
 
-            // Auto-select playing XI image
-            if (dbTeam1) {
-                await fetchAndAutoSelectImage(dbTeam1.team_id, 'playing_xi', setPlayingXILayerImage);
-            }
-        } else {
-            setPlayingXIForm({ teamName: team1Name, opponent: team2Name, players: '' });
+        setPlayingXIForm({
+            teamName: team1Name,
+            opponent: team2Name,
+            players: playersText,
+        });
+
+        // Auto-select playing XI image
+        if (dbTeam1) {
+            await fetchAndAutoSelectImage(dbTeam1.team_id, 'playing_xi', setPlayingXILayerImage);
         }
 
         // Auto-fill from innings data
@@ -637,17 +685,25 @@ export default function TemplatesPage() {
             const secondInnings = data.innings[1];
             const currentInnings = data.currentInnings || firstInnings;
 
-            // Powerplay
-            if (firstInnings) {
-                const powerplayTeam = firstInnings.battingTeam?.toUpperCase() || team1Name;
+            // Powerplay - use CURRENT batting team's powerplay data
+            // If second innings is in progress, use that; otherwise use first innings
+            const powerplayInnings = currentInnings || firstInnings;
+            if (powerplayInnings) {
+                const powerplayTeam = powerplayInnings.battingTeam?.toUpperCase() || team1Name;
+
+                // Use powerplay data from API
+                const ppScore = Number(powerplayInnings.powerplayScore) || 0;
+                const ppWickets = powerplayInnings.powerplayWickets !== null ? Number(powerplayInnings.powerplayWickets) : 0;
+                const ppOvers = Number(powerplayInnings.powerplayOvers) || 6;
+
                 setPowerplayForm({
                     battingTeam: powerplayTeam,
-                    score: firstInnings.score || 0,
-                    wickets: firstInnings.wickets || 0,
-                    overs: Math.min(firstInnings.overs || 0, 6),
+                    score: ppScore,
+                    wickets: ppWickets,
+                    overs: ppOvers,
                 });
-                // Auto-select powerplay image
-                const ppTeam = findTeamByName(firstInnings.battingTeam || '');
+                // Auto-select powerplay image for current batting team
+                const ppTeam = findTeamByName(powerplayInnings.battingTeam || '');
                 if (ppTeam) {
                     await fetchAndAutoSelectImage(ppTeam.team_id, 'powerplay', setPowerplayLayerImage);
                 }
@@ -658,25 +714,90 @@ export default function TemplatesPage() {
                 const topBatsmen = firstInnings.batsmen?.slice(0, 2) || [];
                 const topBowlers = firstInnings.bowlers?.slice(0, 2) || [];
 
+                // Store all match batsmen and bowlers for dropdowns
+                setMatchBatsmen(firstInnings.batsmen || []);
+                setMatchBowlers(firstInnings.bowlers || []);
+
+                // Find the bowling team name (opposite of batting team)
+                const battingTeamName = firstInnings.battingTeam?.toUpperCase() || team1Name;
+                const bowlTeamName = battingTeamName === team1Name ? team2Name : team1Name;
+                setBowlingTeam(bowlTeamName);
+
+                // Use LIVE score from match data (more up-to-date) over stale scorecard data
+                // Determine which team's score to use based on batting order
+                const liveTeam1Score = (match as any).score?.team1Score;
+                const liveTeam2Score = (match as any).score?.team2Score;
+
+                // Check if first innings batting team matches team1 or team2
+                const isTeam1Batting = firstInnings.battingTeam?.toLowerCase() === match.team1.name?.toLowerCase() ||
+                    firstInnings.battingTeamShort?.toLowerCase() === match.team1.shortName?.toLowerCase();
+
+                const liveFirstInningsScore = isTeam1Batting ? liveTeam1Score : liveTeam2Score;
+
+                // Use the higher score (live vs scorecard) to handle API delays
+                const scorecardScore = Number(firstInnings.score) || 0;
+                const liveScore = liveFirstInningsScore?.runs || 0;
+                const finalScore = Math.max(scorecardScore, liveScore);
+
+                const scorecardWickets = Number(firstInnings.wickets) || 0;
+                const liveWickets = liveFirstInningsScore?.wickets || 0;
+                const finalWickets = Math.max(scorecardWickets, liveWickets);
+
+                const scorecardOvers = parseFloat(firstInnings.overs) || 0;
+                const liveOvers = liveFirstInningsScore?.overs || 0;
+                const finalOvers = Math.max(scorecardOvers, liveOvers);
+
                 setInningsEndForm({
-                    battingTeam: firstInnings.battingTeam?.toUpperCase() || team1Name,
-                    score: firstInnings.score || 0,
-                    wickets: firstInnings.wickets || 0,
-                    overs: firstInnings.overs || 0,
+                    battingTeam: battingTeamName,
+                    score: finalScore,
+                    wickets: finalWickets,
+                    overs: finalOvers,
                     inningsNumber: 1,
                     batsman1Name: topBatsmen[0]?.name || '',
-                    batsman1Runs: topBatsmen[0]?.runs || 0,
-                    batsman1Balls: topBatsmen[0]?.balls || 0,
+                    batsman1Runs: Number(topBatsmen[0]?.runs) || 0,
+                    batsman1Balls: Number(topBatsmen[0]?.balls) || 0,
                     batsman2Name: topBatsmen[1]?.name || '',
-                    batsman2Runs: topBatsmen[1]?.runs || 0,
-                    batsman2Balls: topBatsmen[1]?.balls || 0,
+                    batsman2Runs: Number(topBatsmen[1]?.runs) || 0,
+                    batsman2Balls: Number(topBatsmen[1]?.balls) || 0,
                     bowler1Name: topBowlers[0]?.name || '',
-                    bowler1Wickets: topBowlers[0]?.wickets || 0,
-                    bowler1Runs: topBowlers[0]?.runs || 0,
+                    bowler1Wickets: Number(topBowlers[0]?.wickets) || 0,
+                    bowler1Runs: Number(topBowlers[0]?.runs) || 0,
                     bowler2Name: topBowlers[1]?.name || '',
-                    bowler2Wickets: topBowlers[1]?.wickets || 0,
-                    bowler2Runs: topBowlers[1]?.runs || 0,
+                    bowler2Wickets: Number(topBowlers[1]?.wickets) || 0,
+                    bowler2Runs: Number(topBowlers[1]?.runs) || 0,
                 });
+
+                // Auto-select batsmen in dropdown by matching names
+                if (topBatsmen[0]?.name) {
+                    const bat1 = players.find(p =>
+                        p.name.toLowerCase().includes(topBatsmen[0].name.split(' ').pop()?.toLowerCase() || '') ||
+                        topBatsmen[0].name.toLowerCase().includes(p.name.split(' ').pop()?.toLowerCase() || '')
+                    );
+                    if (bat1) setSelectedBatsman1(bat1.player_id);
+                }
+                if (topBatsmen[1]?.name) {
+                    const bat2 = players.find(p =>
+                        p.name.toLowerCase().includes(topBatsmen[1].name.split(' ').pop()?.toLowerCase() || '') ||
+                        topBatsmen[1].name.toLowerCase().includes(p.name.split(' ').pop()?.toLowerCase() || '')
+                    );
+                    if (bat2) setSelectedBatsman2(bat2.player_id);
+                }
+
+                // Auto-select bowlers in dropdown by matching names
+                if (topBowlers[0]?.name) {
+                    const bowl1 = players.find(p =>
+                        p.name.toLowerCase().includes(topBowlers[0].name.split(' ').pop()?.toLowerCase() || '') ||
+                        topBowlers[0].name.toLowerCase().includes(p.name.split(' ').pop()?.toLowerCase() || '')
+                    );
+                    if (bowl1) setSelectedBowler1(bowl1.player_id);
+                }
+                if (topBowlers[1]?.name) {
+                    const bowl2 = players.find(p =>
+                        p.name.toLowerCase().includes(topBowlers[1].name.split(' ').pop()?.toLowerCase() || '') ||
+                        topBowlers[1].name.toLowerCase().includes(p.name.split(' ').pop()?.toLowerCase() || '')
+                    );
+                    if (bowl2) setSelectedBowler2(bowl2.player_id);
+                }
 
                 // Auto-select innings end image
                 const ieTeam = findTeamByName(firstInnings.battingTeam || '');
@@ -684,11 +805,13 @@ export default function TemplatesPage() {
                     await fetchAndAutoSelectImage(ieTeam.team_id, 'innings_end', setInningsEndLayerImage);
                 }
 
-                // Target
+                // Target - use live score for more accurate target
                 const chasingTeam = secondInnings?.battingTeam?.toUpperCase() || team2Name;
+                // Use the finalScore we calculated above (which uses live data)
+                const targetValue = secondInnings?.target ? Number(secondInnings.target) : finalScore + 1;
                 setTargetForm({
                     chasingTeam: chasingTeam,
-                    target: (firstInnings.score || 0) + 1,
+                    target: targetValue,
                 });
 
                 // Auto-select target image
@@ -702,9 +825,9 @@ export default function TemplatesPage() {
             if (currentInnings) {
                 setFallOfWicketForm({
                     battingTeam: currentInnings.battingTeam?.toUpperCase() || team1Name,
-                    score: currentInnings.score || 0,
-                    wickets: currentInnings.wickets || 0,
-                    overs: currentInnings.overs || 0,
+                    score: Number(currentInnings.score) || 0,
+                    wickets: Number(currentInnings.wickets) || 0,
+                    overs: parseFloat(currentInnings.overs) || 0,
                 });
                 // Auto-select fall of wicket image
                 const fowTeam = findTeamByName(currentInnings.battingTeam || '');
@@ -713,15 +836,30 @@ export default function TemplatesPage() {
                 }
             }
 
-            // Check for milestones - find highest scorer with 50+
+            // Check for milestones - PRIORITIZE CURRENT BATTING TEAM
             let highestMilestone: { name: string; runs: number; teamName: string } | null = null;
-            data.innings.forEach(inn => {
-                inn.batsmen?.forEach(bat => {
+
+            // First check current batting team for milestones
+            if (currentInnings?.batsmen) {
+                currentInnings.batsmen.forEach((bat: any) => {
                     if (bat.runs >= 50 && (!highestMilestone || bat.runs > highestMilestone.runs)) {
-                        highestMilestone = { name: bat.name, runs: bat.runs, teamName: inn.battingTeam || '' };
+                        highestMilestone = { name: bat.name, runs: bat.runs, teamName: currentInnings.battingTeam || '' };
                     }
                 });
-            });
+            }
+
+            // If no milestone in current innings, check other innings
+            if (!highestMilestone) {
+                data.innings.forEach((inn: any) => {
+                    // Skip current innings as we already checked it
+                    if (inn.inningsId === currentInnings?.inningsId) return;
+                    inn.batsmen?.forEach((bat: any) => {
+                        if (bat.runs >= 50 && (!highestMilestone || bat.runs > highestMilestone.runs)) {
+                            highestMilestone = { name: bat.name, runs: bat.runs, teamName: inn.battingTeam || '' };
+                        }
+                    });
+                });
+            }
 
             if (highestMilestone) {
                 const nameParts = highestMilestone.name.split(' ');
@@ -738,6 +876,13 @@ export default function TemplatesPage() {
                 }
             } else {
                 setMilestoneForm({ playerFirstName: '', playerLastName: '', milestone: 50 });
+                // Default milestone team to current batting team if no milestone found
+                const currentBattingTeam = findTeamByName(currentInnings?.battingTeam || '');
+                if (currentBattingTeam) {
+                    setMilestoneTeamId(currentBattingTeam.team_id);
+                } else if (dbTeam1) {
+                    setMilestoneTeamId(dbTeam1.team_id);
+                }
             }
         } else {
             // No innings data - set defaults
@@ -755,17 +900,28 @@ export default function TemplatesPage() {
         }
 
         // Match result
-        if (data.state === 'Complete' && data.result) {
-            const resultParts = data.result.split(' won ');
-            const winningTeamName = resultParts[0]?.toUpperCase() || '';
-            setMatchResultForm({
-                winningTeam: winningTeamName,
-                resultText: 'won ' + (resultParts[1] || ''),
-            });
-            // Auto-select match result image
-            const winnerTeam = findTeamByName(resultParts[0] || '');
-            if (winnerTeam) {
-                await fetchAndAutoSelectImage(winnerTeam.team_id, 'match_result', setMatchResultLayerImage);
+        if (data.state === 'Complete') {
+            // The full result text is in match.status from live matches API (e.g., "Australia won by 67 runs")
+            // data.status contains toss info, so we skip it
+            const resultText = match.status || data.result || '';
+
+            if (resultText && resultText.includes(' won ')) {
+                const resultParts = resultText.split(' won ');
+                const winningTeamName = resultParts[0]?.trim().toUpperCase() || '';
+                setMatchResultForm({
+                    winningTeam: winningTeamName,
+                    resultText: 'won ' + (resultParts[1]?.trim() || ''),
+                });
+                // Auto-select match result image
+                const winnerTeam = findTeamByName(resultParts[0]?.trim() || '');
+                if (winnerTeam) {
+                    await fetchAndAutoSelectImage(winnerTeam.team_id, 'match_result', setMatchResultLayerImage);
+                }
+            } else if (resultText) {
+                // Result exists but in a different format (e.g., "Match tied", "Match drawn")
+                setMatchResultForm({ winningTeam: team1Name, resultText: resultText });
+            } else {
+                setMatchResultForm({ winningTeam: team1Name, resultText: '' });
             }
         } else {
             setMatchResultForm({ winningTeam: team1Name, resultText: '' });
@@ -803,6 +959,14 @@ export default function TemplatesPage() {
 
     const resolvedTeam1Logo = team1LogoUrl || team1?.image_url;
     const resolvedTeam2Logo = team2LogoUrl || team2?.image_url;
+
+    // Resolve milestone team logo based on which team the milestone player belongs to
+    const milestoneTeam = teams.find(t => t.team_id === milestoneTeamId);
+    const resolvedMilestoneTeamLogo = milestoneTeamId === selectedTeam1
+        ? resolvedTeam1Logo
+        : (milestoneTeamId === selectedTeam2
+            ? resolvedTeam2Logo
+            : milestoneTeam?.image_url);
 
     const downloadPoster = async () => {
         if (!posterRef.current) return;
@@ -1276,7 +1440,7 @@ export default function TemplatesPage() {
                         playerFirstName={milestoneForm.playerFirstName}
                         playerLastName={milestoneForm.playerLastName}
                         milestone={milestoneForm.milestone}
-                        teamLogo={resolvedTeam1Logo}
+                        teamLogo={resolvedMilestoneTeamLogo}
                         imageOffsetX={imageOffset.x}
                         imageOffsetY={imageOffset.y}
                     />
@@ -1336,8 +1500,30 @@ export default function TemplatesPage() {
                         <div>
                             <label className={labelClass}>Batting Team</label>
                             <select className={inputClass} value={powerplayForm.battingTeam} onChange={e => {
-                                setPowerplayForm(f => ({ ...f, battingTeam: e.target.value }));
+                                const selectedTeamName = e.target.value;
+                                setPowerplayForm(f => ({ ...f, battingTeam: selectedTeamName }));
                                 clearCurrentTemplateImage();
+
+                                // Auto-fill powerplay data from match innings
+                                if (selectedTeamName && matchDetails?.innings) {
+                                    const inningsData = matchDetails.innings.find(
+                                        inn => inn.battingTeam?.toUpperCase() === selectedTeamName ||
+                                               inn.battingTeamShort?.toUpperCase() === selectedTeamName
+                                    );
+                                    if (inningsData) {
+                                        // Use powerplay data from API
+                                        const ppScore = Number(inningsData.powerplayScore) || 0;
+                                        const ppWickets = inningsData.powerplayWickets !== null ? Number(inningsData.powerplayWickets) : 0;
+                                        const ppOvers = Number(inningsData.powerplayOvers) || 6;
+
+                                        setPowerplayForm(f => ({
+                                            ...f,
+                                            score: ppScore,
+                                            wickets: ppWickets,
+                                            overs: ppOvers,
+                                        }));
+                                    }
+                                }
                             }}>
                                 <option value="">Select Team</option>
                                 {teams.map(team => (
@@ -1381,7 +1567,51 @@ export default function TemplatesPage() {
                                 <label className={labelClass}>Innings #</label>
                                 <div className="flex gap-2">
                                     {[1, 2].map(n => (
-                                        <button key={n} onClick={() => setInningsEndForm(f => ({ ...f, inningsNumber: n }))}
+                                        <button key={n} onClick={() => {
+                                            // Update innings number and auto-fill from match data if available
+                                            const inningsData = matchDetails?.innings?.[n - 1];
+                                            if (inningsData) {
+                                                const topBatsmen = inningsData.batsmen?.slice(0, 2) || [];
+                                                const topBowlers = inningsData.bowlers?.slice(0, 2) || [];
+
+                                                // Update match batsmen and bowlers for dropdowns
+                                                setMatchBatsmen(inningsData.batsmen || []);
+                                                setMatchBowlers(inningsData.bowlers || []);
+
+                                                setInningsEndForm({
+                                                    battingTeam: inningsData.battingTeam?.toUpperCase() || '',
+                                                    score: Number(inningsData.score) || 0,
+                                                    wickets: Number(inningsData.wickets) || 0,
+                                                    overs: parseFloat(inningsData.overs) || 0,
+                                                    inningsNumber: n,
+                                                    batsman1Name: topBatsmen[0]?.name || '',
+                                                    batsman1Runs: Number(topBatsmen[0]?.runs) || 0,
+                                                    batsman1Balls: Number(topBatsmen[0]?.balls) || 0,
+                                                    batsman2Name: topBatsmen[1]?.name || '',
+                                                    batsman2Runs: Number(topBatsmen[1]?.runs) || 0,
+                                                    batsman2Balls: Number(topBatsmen[1]?.balls) || 0,
+                                                    bowler1Name: topBowlers[0]?.name || '',
+                                                    bowler1Wickets: Number(topBowlers[0]?.wickets) || 0,
+                                                    bowler1Runs: Number(topBowlers[0]?.runs) || 0,
+                                                    bowler2Name: topBowlers[1]?.name || '',
+                                                    bowler2Wickets: Number(topBowlers[1]?.wickets) || 0,
+                                                    bowler2Runs: Number(topBowlers[1]?.runs) || 0,
+                                                });
+                                                // Update bowling team (opposite of batting team)
+                                                if (inningsData.battingTeam) {
+                                                    const battingTeamUpper = inningsData.battingTeam.toUpperCase();
+                                                    const team1Name = matchDetails?.team1?.name?.toUpperCase() || '';
+                                                    const team2Name = matchDetails?.team2?.name?.toUpperCase() || '';
+                                                    if (battingTeamUpper === team1Name || battingTeamUpper === matchDetails?.team1?.shortName?.toUpperCase()) {
+                                                        setBowlingTeam(team2Name);
+                                                    } else {
+                                                        setBowlingTeam(team1Name);
+                                                    }
+                                                }
+                                            } else {
+                                                setInningsEndForm(f => ({ ...f, inningsNumber: n }));
+                                            }
+                                        }}
                                             className={`flex-1 px-3 py-1.5 rounded text-sm font-medium transition ${inningsEndForm.inningsNumber === n ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300'}`}>
                                             {n === 1 ? '1st' : '2nd'}
                                         </button>
@@ -1425,9 +1655,7 @@ export default function TemplatesPage() {
                             <p className="text-xs text-gray-500 mb-2">Top Batsmen (from {inningsEndForm.battingTeam || 'Batting Team'})</p>
                             {[1, 2].map(i => {
                                 const key = i as 1 | 2;
-                                const battingTeamId = teams.find(t => t.name.toUpperCase() === inningsEndForm.battingTeam)?.team_id;
-                                const battingPlayers = players.filter(p => p.team_id === battingTeamId);
-                                const selectedPlayer = i === 1 ? selectedBatsman1 : selectedBatsman2;
+                                const selectedBatsmanName = i === 1 ? inningsEndForm.batsman1Name : inningsEndForm.batsman2Name;
 
                                 return (
                                     <div key={i} className="mb-2">
@@ -1436,23 +1664,31 @@ export default function TemplatesPage() {
                                                 <label className={labelClass}>Batsman {i}</label>
                                                 <select
                                                     className={inputClass}
-                                                    value={selectedPlayer || ''}
+                                                    value={selectedBatsmanName || ''}
                                                     onChange={e => {
-                                                        const playerId = Number(e.target.value);
-                                                        const player = players.find(p => p.player_id === playerId);
+                                                        const selectedName = e.target.value;
+                                                        const batsman = matchBatsmen.find(b => b.name === selectedName);
                                                         if (i === 1) {
-                                                            setSelectedBatsman1(playerId);
-                                                            if (player) setInningsEndForm(f => ({ ...f, batsman1Name: player.name }));
+                                                            setInningsEndForm(f => ({
+                                                                ...f,
+                                                                batsman1Name: selectedName,
+                                                                batsman1Runs: batsman?.runs || 0,
+                                                                batsman1Balls: batsman?.balls || 0,
+                                                            }));
                                                         } else {
-                                                            setSelectedBatsman2(playerId);
-                                                            if (player) setInningsEndForm(f => ({ ...f, batsman2Name: player.name }));
+                                                            setInningsEndForm(f => ({
+                                                                ...f,
+                                                                batsman2Name: selectedName,
+                                                                batsman2Runs: batsman?.runs || 0,
+                                                                batsman2Balls: batsman?.balls || 0,
+                                                            }));
                                                         }
                                                     }}
                                                 >
                                                     <option value="">Select Player</option>
-                                                    {battingPlayers.map(player => (
-                                                        <option key={player.player_id} value={player.player_id}>
-                                                            {player.name}
+                                                    {matchBatsmen.map(batsman => (
+                                                        <option key={batsman.id || batsman.name} value={batsman.name}>
+                                                            {batsman.name} - {batsman.runs}({batsman.balls})
                                                         </option>
                                                     ))}
                                                 </select>
@@ -1474,9 +1710,7 @@ export default function TemplatesPage() {
                             <p className="text-xs text-gray-500 mb-2">Top Bowlers (from {bowlingTeam || 'Bowling Team'})</p>
                             {[1, 2].map(i => {
                                 const key = i as 1 | 2;
-                                const bowlingTeamId = teams.find(t => t.name.toUpperCase() === bowlingTeam)?.team_id;
-                                const bowlingPlayers = players.filter(p => p.team_id === bowlingTeamId);
-                                const selectedPlayer = i === 1 ? selectedBowler1 : selectedBowler2;
+                                const selectedBowlerName = i === 1 ? inningsEndForm.bowler1Name : inningsEndForm.bowler2Name;
 
                                 return (
                                     <div key={i} className="mb-2">
@@ -1485,23 +1719,31 @@ export default function TemplatesPage() {
                                                 <label className={labelClass}>Bowler {i}</label>
                                                 <select
                                                     className={inputClass}
-                                                    value={selectedPlayer || ''}
+                                                    value={selectedBowlerName || ''}
                                                     onChange={e => {
-                                                        const playerId = Number(e.target.value);
-                                                        const player = players.find(p => p.player_id === playerId);
+                                                        const selectedName = e.target.value;
+                                                        const bowler = matchBowlers.find(b => b.name === selectedName);
                                                         if (i === 1) {
-                                                            setSelectedBowler1(playerId);
-                                                            if (player) setInningsEndForm(f => ({ ...f, bowler1Name: player.name }));
+                                                            setInningsEndForm(f => ({
+                                                                ...f,
+                                                                bowler1Name: selectedName,
+                                                                bowler1Wickets: bowler?.wickets || 0,
+                                                                bowler1Runs: bowler?.runs || 0,
+                                                            }));
                                                         } else {
-                                                            setSelectedBowler2(playerId);
-                                                            if (player) setInningsEndForm(f => ({ ...f, bowler2Name: player.name }));
+                                                            setInningsEndForm(f => ({
+                                                                ...f,
+                                                                bowler2Name: selectedName,
+                                                                bowler2Wickets: bowler?.wickets || 0,
+                                                                bowler2Runs: bowler?.runs || 0,
+                                                            }));
                                                         }
                                                     }}
                                                 >
                                                     <option value="">Select Player</option>
-                                                    {bowlingPlayers.map(player => (
-                                                        <option key={player.player_id} value={player.player_id}>
-                                                            {player.name}
+                                                    {matchBowlers.map(bowler => (
+                                                        <option key={bowler.id || bowler.name} value={bowler.name}>
+                                                            {bowler.name} - {bowler.wickets}/{bowler.runs} ({bowler.overs} ov)
                                                         </option>
                                                     ))}
                                                 </select>
@@ -1527,8 +1769,31 @@ export default function TemplatesPage() {
                         <div>
                             <label className={labelClass}>Chasing Team</label>
                             <select className={inputClass} value={targetForm.chasingTeam} onChange={e => {
-                                setTargetForm(f => ({ ...f, chasingTeam: e.target.value }));
+                                const selectedTeamName = e.target.value;
+                                setTargetForm(f => ({ ...f, chasingTeam: selectedTeamName }));
                                 clearCurrentTemplateImage();
+
+                                // Auto-calculate target from match data
+                                if (selectedTeamName && matchDetails?.innings?.length >= 1) {
+                                    // Find the innings where selected team is batting (chasing)
+                                    const chasingInnings = matchDetails.innings.find(
+                                        inn => inn.battingTeam?.toUpperCase() === selectedTeamName ||
+                                               inn.battingTeamShort?.toUpperCase() === selectedTeamName
+                                    );
+                                    // If chasing team's innings exists and has target, use it
+                                    if (chasingInnings?.target) {
+                                        setTargetForm(f => ({ ...f, target: Number(chasingInnings.target) }));
+                                    } else {
+                                        // Find the other innings (first innings) and calculate target
+                                        const firstInnings = matchDetails.innings.find(
+                                            inn => (inn.battingTeam?.toUpperCase() !== selectedTeamName &&
+                                                   inn.battingTeamShort?.toUpperCase() !== selectedTeamName)
+                                        );
+                                        if (firstInnings) {
+                                            setTargetForm(f => ({ ...f, target: (Number(firstInnings.score) || 0) + 1 }));
+                                        }
+                                    }
+                                }
                             }}>
                                 <option value="">Select Team</option>
                                 {teams.map(team => (
@@ -1574,12 +1839,53 @@ export default function TemplatesPage() {
                                     setPlayingXIForm(f => ({ ...f, teamName: selectedTeamName }));
                                     clearCurrentTemplateImage();
 
-                                    // Auto-populate players from selected team
-                                    if (selectedTeamName) {
+                                    // Auto-populate players from match data or database
+                                    if (selectedTeamName && matchDetails) {
+                                        // Check if selected team matches team1 or team2 from match data
+                                        const isTeam1 = matchDetails.team1?.name?.toUpperCase() === selectedTeamName ||
+                                                        matchDetails.team1?.shortName?.toUpperCase() === selectedTeamName;
+                                        const isTeam2 = matchDetails.team2?.name?.toUpperCase() === selectedTeamName ||
+                                                        matchDetails.team2?.shortName?.toUpperCase() === selectedTeamName;
+
+                                        if (isTeam1 && matchDetails.team1?.players?.length > 0) {
+                                            // Use playing XI from match data
+                                            const playersText = matchDetails.team1.players.map(p => {
+                                                let suffix = '';
+                                                if (p.isCaptain && p.isKeeper) suffix = ' (C & WK)';
+                                                else if (p.isCaptain) suffix = ' (C)';
+                                                else if (p.isKeeper) suffix = ' (WK)';
+                                                return p.name + suffix;
+                                            }).join('\n');
+                                            setPlayingXIForm(f => ({ ...f, players: playersText }));
+                                        } else if (isTeam2 && matchDetails.team2?.players?.length > 0) {
+                                            // Use playing XI from match data
+                                            const playersText = matchDetails.team2.players.map(p => {
+                                                let suffix = '';
+                                                if (p.isCaptain && p.isKeeper) suffix = ' (C & WK)';
+                                                else if (p.isCaptain) suffix = ' (C)';
+                                                else if (p.isKeeper) suffix = ' (WK)';
+                                                return p.name + suffix;
+                                            }).join('\n');
+                                            setPlayingXIForm(f => ({ ...f, players: playersText }));
+                                        } else {
+                                            // Fallback to database players
+                                            const team = teams.find(t => t.name.toUpperCase() === selectedTeamName);
+                                            if (team) {
+                                                const teamPlayers = players.filter(p => p.team_id === team.team_id);
+                                                const sortedPlayers = teamPlayers.sort((a, b) => {
+                                                    if (a.role === 'Captain') return -1;
+                                                    if (b.role === 'Captain') return 1;
+                                                    return 0;
+                                                });
+                                                const playerNames = sortedPlayers.map(p => p.name).join('\n');
+                                                setPlayingXIForm(f => ({ ...f, players: playerNames }));
+                                            }
+                                        }
+                                    } else if (selectedTeamName) {
+                                        // No match data, use database players
                                         const team = teams.find(t => t.name.toUpperCase() === selectedTeamName);
                                         if (team) {
                                             const teamPlayers = players.filter(p => p.team_id === team.team_id);
-                                            // Sort: captain first, then others
                                             const sortedPlayers = teamPlayers.sort((a, b) => {
                                                 if (a.role === 'Captain') return -1;
                                                 if (b.role === 'Captain') return 1;
@@ -1695,8 +2001,25 @@ export default function TemplatesPage() {
                         <div>
                             <label className={labelClass}>Batting Team</label>
                             <select className={inputClass} value={fallOfWicketForm.battingTeam} onChange={e => {
-                                setFallOfWicketForm(f => ({ ...f, battingTeam: e.target.value }));
+                                const selectedTeamName = e.target.value;
+                                setFallOfWicketForm(f => ({ ...f, battingTeam: selectedTeamName }));
                                 clearCurrentTemplateImage();
+
+                                // Auto-fill from match innings data
+                                if (selectedTeamName && matchDetails?.innings) {
+                                    const inningsData = matchDetails.innings.find(
+                                        inn => inn.battingTeam?.toUpperCase() === selectedTeamName ||
+                                               inn.battingTeamShort?.toUpperCase() === selectedTeamName
+                                    );
+                                    if (inningsData) {
+                                        setFallOfWicketForm(f => ({
+                                            ...f,
+                                            score: Number(inningsData.score) || 0,
+                                            wickets: Number(inningsData.wickets) || 0,
+                                            overs: parseFloat(inningsData.overs) || 0,
+                                        }));
+                                    }
+                                }
                             }}>
                                 <option value="">Select Team</option>
                                 {teams.map(team => (

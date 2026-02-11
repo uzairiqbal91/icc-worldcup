@@ -91,7 +91,7 @@ export default function PowerplayTemplate({
                     color: '#ffffff',
                     letterSpacing: 1.17,
                 }}>
-                    {score}/{wickets.toString().padStart(2, '0')}{'  '}{overs} Overs
+                    {score}/{wickets}{'  '}{overs} Overs
                 </p>
             </div>
         </BaseTemplate>

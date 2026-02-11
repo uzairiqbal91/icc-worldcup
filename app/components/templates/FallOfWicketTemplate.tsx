@@ -94,7 +94,7 @@ export default function FallOfWicketTemplate({
                     color: '#ffffff',
                     letterSpacing: 1.22,
                 }}>
-                    {score}/{wickets.toString().padStart(2, '0')}{'  '}{overs} Overs
+                    {score}/{wickets}{'  '}{overs} Overs
                 </p>
             </div>
         </BaseTemplate>

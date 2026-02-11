@@ -157,7 +157,7 @@ export default function InningsEndTemplate({
                     color: '#ffffff',
                     letterSpacing: 1.78,
                 }}>
-                    {score}/{wickets.toString().padStart(2, '0')}{'  '}{overs} Overs
+                    {score}/{wickets}{'  '}{overs} Overs
                 </p>
             </div>
 
