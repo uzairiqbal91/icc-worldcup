@@ -4,28 +4,33 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface TargetTemplateProps {
-    /**
-     * DYNAMIC: The main target image - changes per match
-     * Recommended size: 2024×1350px (landscape)
-     */
     targetImage?: string;
     team1Logo?: string;
     team2Logo?: string;
-    /** Team that needs to chase (dynamic) */
+    /** Batting team name (dynamic) */
+    battingTeam: string;
+    /** Total score (dynamic) */
+    score: number;
+    /** Wickets fallen (dynamic) */
+    wickets: number;
+    /** Overs bowled (dynamic) */
+    overs: number;
+    /** Chasing team name (dynamic) */
     chasingTeam: string;
     /** Target runs (dynamic) */
     target: number;
-    /** Image position offset X (for drag/drop repositioning) */
     imageOffsetX?: number;
-    /** Image position offset Y (for drag/drop repositioning) */
     imageOffsetY?: number;
 }
 
 export default function TargetTemplate({
     targetImage,
     team1Logo,
-    team2Logo,
     chasingTeam,
+    battingTeam,
+    score,
+    wickets,
+    overs,
     target,
     imageOffsetX = 0,
     imageOffsetY = 0,
@@ -33,46 +38,99 @@ export default function TargetTemplate({
     return (
         <BaseTemplate
             templateLayer={targetImage}
-            templateLayerStyle={{ left: -410, top: 0, width: 2024, height: 1350 }}
+            templateLayerStyle={{ left: -600, top: 0, width: 2032, height: 1355 }}
             imageOffsetX={imageOffsetX}
             imageOffsetY={imageOffsetY}
-            team1Logo={team1Logo}
-            team2Logo={team2Logo}
-            mycoVariant="white"
         >
             {/* TARGET Title */}
             <p
-                className="absolute uppercase text-center"
+                className="absolute uppercase"
                 style={{
-                    left: '50%', top: 986.76,
-                    transform: 'translateX(-50%)',
+                    left: 288.53, top: 904.62,
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 700,
-                    fontSize: 100,
-                    lineHeight: '100px',
+                    fontSize: 120,
+                    lineHeight: '120px',
                     color: '#ffffff',
-                    letterSpacing: -4.1,
+                    letterSpacing: 6,
                 }}
             >
                 target
             </p>
 
-            {/* Chasing team need X runs to win */}
+            {/* Score section with team flag */}
+            <div className="absolute" style={{ left: 0, top: 0 }}>
+                {team1Logo && (
+                    <div className="absolute" style={{ left: 442, top: 1042, width: 99, height: 50 }}>
+                        <img src={team1Logo} alt="" className="absolute inset-0 w-full h-full object-contain" />
+                    </div>
+                )}
+                <p
+                    className="absolute uppercase"
+                    style={{
+                        left: 555.26, top: 1037.85,
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 400,
+                        fontSize: 34.29,
+                        lineHeight: '34.29px',
+                        color: '#ffffff',
+                        letterSpacing: -1.31,
+                    }}
+                >
+                    {score}/{wickets}
+                </p>
+                <div
+                    className="absolute flex items-baseline gap-1"
+                    style={{ left: 555.63, top: 1078.87 }}
+                >
+                    <span
+                        style={{
+                            fontFamily: "'Inter', sans-serif",
+                            fontWeight: 400,
+                            fontSize: 13.72,
+                            lineHeight: '13.72px',
+                            color: '#ffffff',
+                            letterSpacing: 0.64,
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        {overs}
+                    </span>
+                    <span
+                        style={{
+                            fontFamily: "'Inter', sans-serif",
+                            fontWeight: 400,
+                            fontSize: 13.72,
+                            lineHeight: '13.72px',
+                            color: '#ffffff',
+                            letterSpacing: 0.64,
+                            textTransform: 'uppercase',
+                        }}
+                    >
+                        overs
+                    </span>
+                </div>
+            </div>
+
+            {/* Orange line divider */}
+            <div className="absolute" style={{ left: 252, top: 1117.5, width: 576, height: 2, backgroundColor: '#ff9100' }} />
+
+            {/* Target text */}
             <p
-                className="absolute uppercase text-center"
+                className="absolute uppercase"
                 style={{
-                    left: '50%', top: 1096.3,
+                    left: '50%', top: 1139.69,
                     transform: 'translateX(-50%)',
-                    fontFamily: "'Inter', sans-serif",
-                    fontWeight: 500,
-                    fontSize: 36,
-                    lineHeight: '36px',
-                    color: '#ffdc29',
-                    letterSpacing: 0.6,
                     whiteSpace: 'nowrap',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 24,
+                    lineHeight: '24px',
+                    color: '#ffffff',
+                    letterSpacing: 0.47,
                 }}
             >
-                {chasingTeam} need {target} runs to win
+                <span style={{ fontWeight: 700 }}>{chasingTeam} </span>
+                <span style={{ fontWeight: 400 }}>need {target} runs to win</span>
             </p>
         </BaseTemplate>
     );

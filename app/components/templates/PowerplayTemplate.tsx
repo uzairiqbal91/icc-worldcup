@@ -4,24 +4,14 @@ import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
 interface PowerplayTemplateProps {
-    /**
-     * DYNAMIC: The main powerplay image - changes per match
-     * Recommended size: 1975×1347px (landscape)
-     */
     powerplayImage?: string;
     team1Logo?: string;
     team2Logo?: string;
-    /** Batting team name (dynamic) */
     battingTeam: string;
-    /** Score (dynamic) */
     score: number;
-    /** Wickets (dynamic) */
     wickets: number;
-    /** Overs (dynamic) */
     overs: number;
-    /** Image position offset X (for drag/drop repositioning) */
     imageOffsetX?: number;
-    /** Image position offset Y (for drag/drop repositioning) */
     imageOffsetY?: number;
 }
 
@@ -39,59 +29,70 @@ export default function PowerplayTemplate({
     return (
         <BaseTemplate
             templateLayer={powerplayImage}
-            templateLayerStyle={{ left: -490, top: 0, width: 1975, height: 1347 }}
+            templateLayerStyle={{ left: -2, top: -2, width: 1082, height: 1623 }}
             imageOffsetX={imageOffsetX}
             imageOffsetY={imageOffsetY}
-            team1Logo={team1Logo}
-            team2Logo={team2Logo}
-            showVsSection={true}
-            vsStyle="bottom-large"
-            mycoVariant="white"
         >
             {/* POWER PLAY Title */}
             <p
                 className="absolute uppercase"
                 style={{
-                    left: 217, top: 856.76,
+                    left: 203.53, top: 861.72,
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 700,
                     fontSize: 100,
                     lineHeight: '100px',
                     color: '#ffffff',
-                    letterSpacing: -1.56,
+                    letterSpacing: 1.37,
                 }}
             >
-                Power play
+                power play
             </p>
+
+            {/* VS Section with team logos */}
+            {team1Logo && team2Logo && (
+                <div className="absolute" style={{ left: 0, top: 0 }}>
+                    <div className="absolute" style={{ left: 428, top: 991, width: 88, height: 45 }}>
+                        <img src={team1Logo} alt="Team 1" className="absolute inset-0 w-full h-full object-contain" />
+                    </div>
+                    <p
+                        className="absolute uppercase"
+                        style={{
+                            left: 528.15, top: 997.42,
+                            fontFamily: "'Inter', sans-serif",
+                            fontWeight: 400,
+                            fontSize: 30,
+                            lineHeight: '30px',
+                            color: '#ff9100',
+                            letterSpacing: 15,
+                        }}
+                    >
+                        v
+                    </p>
+                    <div className="absolute" style={{ left: 563, top: 992, width: 87, height: 43 }}>
+                        <img src={team2Logo} alt="Team 2" className="absolute inset-0 w-full h-full object-contain" />
+                    </div>
+                </div>
+            )}
 
             {/* Team Name and Score */}
             <div
                 className="absolute text-center uppercase"
                 style={{
-                    left: '50%', top: 981.48,
+                    left: '50%', top: 1072.7,
                     transform: 'translateX(-50%)',
                     whiteSpace: 'nowrap',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 40,
+                    color: '#ffffff',
                 }}
             >
-                <p style={{
-                    fontFamily: "'Inter', sans-serif",
-                    fontWeight: 700,
-                    fontSize: 48,
-                    lineHeight: '60px',
-                    color: '#ffdc29',
-                    letterSpacing: 0.39,
-                }}>
-                    {battingTeam}
+                <p style={{ margin: 0, lineHeight: '45px' }}>
+                    <span style={{ fontWeight: 700 }}>{battingTeam}</span>
+                    <span style={{ fontWeight: 500 }}> {score}/{wickets}</span>
                 </p>
-                <p style={{
-                    fontFamily: "'Inter', sans-serif",
-                    fontWeight: 500,
-                    fontSize: 48,
-                    lineHeight: '60px',
-                    color: '#ffffff',
-                    letterSpacing: 1.17,
-                }}>
-                    {score}/{wickets}{'  '}{overs} Overs
+                <p style={{ margin: 0, fontWeight: 500, lineHeight: '45px' }}>
+                    {overs} Overs
                 </p>
             </div>
         </BaseTemplate>

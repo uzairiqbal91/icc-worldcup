@@ -9,7 +9,8 @@ import {
     MatchResultTemplate,
     PlayingXITemplate,
     MilestoneTemplate,
-    FallOfWicketTemplate
+    FallOfWicketTemplate,
+    PlayerOfTheMatchTemplate
 } from './components/templates';
 import Toast from './components/Toast';
 import LoginPage from './components/LoginPage';
@@ -74,7 +75,7 @@ interface MatchDetails {
     result: string | null;
 }
 
-type TemplateType = 'toss' | 'powerplay' | 'innings_end' | 'target' | 'match_result' | 'playing_xi' | 'milestone' | 'fall_of_wicket';
+type TemplateType = 'toss' | 'powerplay' | 'innings_end' | 'target' | 'match_result' | 'playing_xi' | 'milestone' | 'fall_of_wicket' | 'player_of_the_match';
 
 // Preview component with drag functionality
 interface PreviewWithDragProps {
@@ -154,6 +155,7 @@ function PreviewWithDrag({ posterRef, renderTemplate, hasImage, imageOffset, onI
             style={{
                 width: '432px',
                 height: '540px',
+                overflow: 'hidden',
                 cursor: hasImage ? (isDragging ? 'grabbing' : 'grab') : 'default',
             }}
             onMouseDown={handleMouseDown}
@@ -198,20 +200,22 @@ interface Player {
     team_id: number;
 }
 
-interface TossForm { tossWinner: string; tossDecision: string; }
+interface TossForm { tossWinner: string; tossDecision: string; description: string; }
 interface PowerplayForm { battingTeam: string; score: number; wickets: number; overs: number; }
 interface InningsEndForm {
     battingTeam: string; score: number; wickets: number; overs: number; inningsNumber: number;
+    chasingTeam: string; target: number;
     batsman1Name: string; batsman1Runs: number; batsman1Balls: number;
     batsman2Name: string; batsman2Runs: number; batsman2Balls: number;
     bowler1Name: string; bowler1Wickets: number; bowler1Runs: number;
     bowler2Name: string; bowler2Wickets: number; bowler2Runs: number;
 }
-interface TargetForm { chasingTeam: string; target: number; }
-interface MatchResultForm { winningTeam: string; resultText: string; }
+interface TargetForm { chasingTeam: string; target: number; battingTeam: string; score: number; wickets: number; overs: number; }
+interface MatchResultForm { winningTeam: string; resultText: string; team1Score: string; team1Overs: string; team2Score: string; team2Overs: string; }
 interface PlayingXIForm { teamName: string; opponent: string; players: string; }
 interface MilestoneForm { playerFirstName: string; playerLastName: string; milestone: number; }
 interface FallOfWicketForm { battingTeam: string; score: number; wickets: number; overs: number; }
+interface PlayerOfTheMatchForm { playerName: string; playerTeamId: number | null; }
 
 const inputClass = 'w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-green-500';
 const labelClass = 'block text-xs font-medium text-gray-400 mb-1';
@@ -242,23 +246,25 @@ export default function TemplatesPage() {
     const [detectedEvents, setDetectedEvents] = useState<string[]>([]);
 
     // Form states for each template — pre-filled with sample data
-    const [tossForm, setTossForm] = useState<TossForm>({ tossWinner: '', tossDecision: 'bat' });
+    const [tossForm, setTossForm] = useState<TossForm>({ tossWinner: '', tossDecision: 'bat', description: 'win the toss & elect to bowl first' });
     const [powerplayForm, setPowerplayForm] = useState<PowerplayForm>({ battingTeam: '', score: 58, wickets: 1, overs: 6 });
     const [inningsEndForm, setInningsEndForm] = useState<InningsEndForm>({
         battingTeam: '', score: 213, wickets: 4, overs: 20, inningsNumber: 1,
+        chasingTeam: '', target: 0,
         batsman1Name: 'Suryakumar Yadav', batsman1Runs: 82, batsman1Balls: 53,
         batsman2Name: 'Rohit Sharma', batsman2Runs: 64, batsman2Balls: 41,
         bowler1Name: 'Trent Boult', bowler1Wickets: 2, bowler1Runs: 38,
         bowler2Name: 'Tim Southee', bowler2Wickets: 1, bowler2Runs: 42,
     });
-    const [targetForm, setTargetForm] = useState<TargetForm>({ chasingTeam: '', target: 214 });
-    const [matchResultForm, setMatchResultForm] = useState<MatchResultForm>({ winningTeam: '', resultText: 'won by 65 runs' });
+    const [targetForm, setTargetForm] = useState<TargetForm>({ chasingTeam: '', target: 214, battingTeam: '', score: 0, wickets: 0, overs: 20 });
+    const [matchResultForm, setMatchResultForm] = useState<MatchResultForm>({ winningTeam: '', resultText: 'won by 65 runs', team1Score: '', team1Overs: '', team2Score: '', team2Overs: '' });
     const [playingXIForm, setPlayingXIForm] = useState<PlayingXIForm>({
         teamName: '', opponent: '',
         players: ''
     });
     const [milestoneForm, setMilestoneForm] = useState<MilestoneForm>({ playerFirstName: 'Suryakumar', playerLastName: 'Yadav', milestone: 100 });
     const [fallOfWicketForm, setFallOfWicketForm] = useState<FallOfWicketForm>({ battingTeam: '', score: 42, wickets: 3, overs: 7.2 });
+    const [playerOfTheMatchForm, setPlayerOfTheMatchForm] = useState<PlayerOfTheMatchForm>({ playerName: '', playerTeamId: null });
 
     const [team1LogoUrl, setTeam1LogoUrl] = useState('');
     const [team2LogoUrl, setTeam2LogoUrl] = useState('');
@@ -271,6 +277,7 @@ export default function TemplatesPage() {
     const [playingXILayerImage, setPlayingXILayerImage] = useState('');
     const [milestoneLayerImage, setMilestoneLayerImage] = useState('');
     const [fallOfWicketLayerImage, setFallOfWicketLayerImage] = useState('');
+    const [playerOfTheMatchLayerImage, setPlayerOfTheMatchLayerImage] = useState('');
 
     // Image position offsets for drag and drop repositioning
     const [imageOffset, setImageOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -562,20 +569,21 @@ export default function TemplatesPage() {
         }
 
         // Fill all templates with just team names (no scores/data)
-        setTossForm({ tossWinner: team1Name, tossDecision: 'bat' });
+        setTossForm({ tossWinner: team1Name, tossDecision: 'bat', description: 'win the toss & elect to bat first' });
         setPlayingXIForm({ teamName: team1Name, opponent: team2Name, players: playersText });
         setPowerplayForm({ battingTeam: team1Name, score: 0, wickets: 0, overs: 0 });
         setInningsEndForm({
             battingTeam: team1Name, score: 0, wickets: 0, overs: 0, inningsNumber: 1,
+            chasingTeam: team2Name, target: 0,
             batsman1Name: '', batsman1Runs: 0, batsman1Balls: 0,
             batsman2Name: '', batsman2Runs: 0, batsman2Balls: 0,
             bowler1Name: '', bowler1Wickets: 0, bowler1Runs: 0,
             bowler2Name: '', bowler2Wickets: 0, bowler2Runs: 0,
         });
-        setTargetForm({ chasingTeam: team2Name, target: 0 });
+        setTargetForm({ chasingTeam: team2Name, target: 0, battingTeam: team1Name, score: 0, wickets: 0, overs: 20 });
         setFallOfWicketForm({ battingTeam: team1Name, score: 0, wickets: 0, overs: 0 });
         setMilestoneForm({ playerFirstName: '', playerLastName: '', milestone: 50 });
-        setMatchResultForm({ winningTeam: team1Name, resultText: '' });
+        setMatchResultForm({ winningTeam: team1Name, resultText: '', team1Score: '', team1Overs: '', team2Score: '', team2Overs: '' });
 
         // Set default milestone team to team1 for upcoming matches
         if (dbTeam1) {
@@ -630,6 +638,7 @@ export default function TemplatesPage() {
             setTossForm({
                 tossWinner: data.toss.winner?.toUpperCase() || team1Name,
                 tossDecision: data.toss.decision || 'bat',
+                description: `win the toss & elect to ${(data.toss.decision || 'bat').toLowerCase()} first`,
             });
             // Auto-select toss template image
             const tossWinnerTeam = findTeamByName(data.toss.winner || '');
@@ -637,7 +646,7 @@ export default function TemplatesPage() {
                 await fetchAndAutoSelectImage(tossWinnerTeam.team_id, 'toss', setTossLayerImage);
             }
         } else {
-            setTossForm({ tossWinner: team1Name, tossDecision: 'bat' });
+            setTossForm({ tossWinner: team1Name, tossDecision: 'bat', description: 'win the toss & elect to bat first' });
         }
 
         // Auto-fill Playing XI
@@ -746,12 +755,16 @@ export default function TemplatesPage() {
                 const liveOvers = liveFirstInningsScore?.overs || 0;
                 const finalOvers = Math.max(scorecardOvers, liveOvers);
 
+                const chasingTeamName = secondInnings?.battingTeam?.toUpperCase() || team2Name;
+                const inningsTarget = secondInnings?.target ? Number(secondInnings.target) : finalScore + 1;
                 setInningsEndForm({
                     battingTeam: battingTeamName,
                     score: finalScore,
                     wickets: finalWickets,
                     overs: finalOvers,
                     inningsNumber: 1,
+                    chasingTeam: chasingTeamName,
+                    target: inningsTarget,
                     batsman1Name: topBatsmen[0]?.name || '',
                     batsman1Runs: Number(topBatsmen[0]?.runs) || 0,
                     batsman1Balls: Number(topBatsmen[0]?.balls) || 0,
@@ -808,10 +821,15 @@ export default function TemplatesPage() {
                 const chasingTeam = secondInnings?.battingTeam?.toUpperCase() || team2Name;
                 // Use the finalScore we calculated above (which uses live data)
                 const targetValue = secondInnings?.target ? Number(secondInnings.target) : finalScore + 1;
-                setTargetForm({
+                setTargetForm(f => ({
+                    ...f,
                     chasingTeam: chasingTeam,
                     target: targetValue,
-                });
+                    battingTeam: firstInnings?.battingTeam?.toUpperCase() || team1Name,
+                    score: finalScore,
+                    wickets: Number(firstInnings?.wickets) || 0,
+                    overs: Number(firstInnings?.overs) || 20,
+                }));
 
                 // Auto-select target image
                 const targetTeam = findTeamByName(secondInnings?.battingTeam || data.team2?.name || '');
@@ -871,7 +889,7 @@ export default function TemplatesPage() {
                 setMilestoneForm({
                     playerFirstName: nameParts[0] || '',
                     playerLastName: nameParts.slice(1).join(' ') || nameParts[0],
-                    milestone: highestMilestone.runs >= 100 ? 100 : 50,
+                    milestone: highestMilestone.runs >= 100 ? 100 : 100,
                 });
                 // Set milestone team
                 const milestoneTeam = findTeamByName(highestMilestone.teamName);
@@ -894,17 +912,26 @@ export default function TemplatesPage() {
             setPowerplayForm({ battingTeam: team1Name, score: 0, wickets: 0, overs: 0 });
             setInningsEndForm({
                 battingTeam: team1Name, score: 0, wickets: 0, overs: 0, inningsNumber: 1,
+                chasingTeam: team2Name, target: 0,
                 batsman1Name: '', batsman1Runs: 0, batsman1Balls: 0,
                 batsman2Name: '', batsman2Runs: 0, batsman2Balls: 0,
                 bowler1Name: '', bowler1Wickets: 0, bowler1Runs: 0,
                 bowler2Name: '', bowler2Wickets: 0, bowler2Runs: 0,
             });
-            setTargetForm({ chasingTeam: team2Name, target: 0 });
+            setTargetForm({ chasingTeam: team2Name, target: 0, battingTeam: team1Name, score: 0, wickets: 0, overs: 20 });
             setFallOfWicketForm({ battingTeam: team1Name, score: 0, wickets: 0, overs: 0 });
             setMilestoneForm({ playerFirstName: '', playerLastName: '', milestone: 50 });
         }
 
         // Match result
+        // Auto-fill team scores for match result
+        const inn1 = data.innings?.[0];
+        const inn2 = data.innings?.[1];
+        const t1Score = inn1 ? `${inn1.score}/${inn1.wickets}` : '';
+        const t1Overs = inn1 ? String(inn1.overs) : '';
+        const t2Score = inn2 ? `${inn2.score}/${inn2.wickets}` : '';
+        const t2Overs = inn2 ? String(inn2.overs) : '';
+
         if (data.state === 'Complete') {
             // The full result text is in match.status from live matches API (e.g., "Australia won by 67 runs")
             // data.status contains toss info, so we skip it
@@ -916,6 +943,8 @@ export default function TemplatesPage() {
                 setMatchResultForm({
                     winningTeam: winningTeamName,
                     resultText: 'won ' + (resultParts[1]?.trim() || ''),
+                    team1Score: t1Score, team1Overs: t1Overs,
+                    team2Score: t2Score, team2Overs: t2Overs,
                 });
                 // Auto-select match result image
                 const winnerTeam = findTeamByName(resultParts[0]?.trim() || '');
@@ -924,12 +953,12 @@ export default function TemplatesPage() {
                 }
             } else if (resultText) {
                 // Result exists but in a different format (e.g., "Match tied", "Match drawn")
-                setMatchResultForm({ winningTeam: team1Name, resultText: resultText });
+                setMatchResultForm({ winningTeam: team1Name, resultText: resultText, team1Score: t1Score, team1Overs: t1Overs, team2Score: t2Score, team2Overs: t2Overs });
             } else {
-                setMatchResultForm({ winningTeam: team1Name, resultText: '' });
+                setMatchResultForm({ winningTeam: team1Name, resultText: '', team1Score: t1Score, team1Overs: t1Overs, team2Score: t2Score, team2Overs: t2Overs });
             }
         } else {
-            setMatchResultForm({ winningTeam: team1Name, resultText: '' });
+            setMatchResultForm({ winningTeam: team1Name, resultText: '', team1Score: t1Score, team1Overs: t1Overs, team2Score: t2Score, team2Overs: t2Overs });
         }
     };
 
@@ -1036,7 +1065,8 @@ export default function TemplatesPage() {
         { key: 'match_result', label: 'Match End' },
         { key: 'playing_xi', label: 'Playing XI' },
         { key: 'milestone', label: '50/100 Milestone' },
-        { key: 'fall_of_wicket', label: 'Fall of Wicket' }
+        { key: 'fall_of_wicket', label: 'Fall of Wicket' },
+        { key: 'player_of_the_match', label: 'Player of the Match' }
     ];
 
     const parsePlayingXI = (text: string) => {
@@ -1276,6 +1306,7 @@ export default function TemplatesPage() {
             case 'playing_xi': return playingXILayerImage;
             case 'milestone': return milestoneLayerImage;
             case 'fall_of_wicket': return fallOfWicketLayerImage;
+            case 'player_of_the_match': return playerOfTheMatchLayerImage;
             default: return '';
         }
     };
@@ -1290,6 +1321,7 @@ export default function TemplatesPage() {
             case 'playing_xi': setPlayingXILayerImage(imageUrl); break;
             case 'milestone': setMilestoneLayerImage(imageUrl); break;
             case 'fall_of_wicket': setFallOfWicketLayerImage(imageUrl); break;
+            case 'player_of_the_match': setPlayerOfTheMatchLayerImage(imageUrl); break;
         }
     };
 
@@ -1364,6 +1396,7 @@ export default function TemplatesPage() {
                         tossImage={tossLayerImage}
                         tossWinner={tossForm.tossWinner}
                         tossDecision={tossForm.tossDecision}
+                        description={tossForm.description}
                         imageOffsetX={imageOffset.x}
                         imageOffsetY={imageOffset.y}
                     />
@@ -1393,14 +1426,8 @@ export default function TemplatesPage() {
                         wickets={inningsEndForm.wickets}
                         overs={inningsEndForm.overs}
                         inningsNumber={inningsEndForm.inningsNumber}
-                        topBatsmen={[
-                            { name: inningsEndForm.batsman1Name, runs: inningsEndForm.batsman1Runs, balls: inningsEndForm.batsman1Balls },
-                            { name: inningsEndForm.batsman2Name, runs: inningsEndForm.batsman2Runs, balls: inningsEndForm.batsman2Balls },
-                        ]}
-                        topBowlers={[
-                            { name: inningsEndForm.bowler1Name, wickets: inningsEndForm.bowler1Wickets, runsGiven: inningsEndForm.bowler1Runs },
-                            { name: inningsEndForm.bowler2Name, wickets: inningsEndForm.bowler2Wickets, runsGiven: inningsEndForm.bowler2Runs },
-                        ]}
+                        chasingTeam={inningsEndForm.chasingTeam}
+                        target={inningsEndForm.target}
                         imageOffsetX={imageOffset.x}
                         imageOffsetY={imageOffset.y}
                     />
@@ -1411,6 +1438,10 @@ export default function TemplatesPage() {
                         targetImage={targetLayerImage}
                         team1Logo={resolvedTeam1Logo}
                         team2Logo={resolvedTeam2Logo}
+                        battingTeam={targetForm.battingTeam}
+                        score={targetForm.score}
+                        wickets={targetForm.wickets}
+                        overs={targetForm.overs}
                         chasingTeam={targetForm.chasingTeam}
                         target={targetForm.target}
                         imageOffsetX={imageOffset.x}
@@ -1423,6 +1454,12 @@ export default function TemplatesPage() {
                         matchResultImage={matchResultLayerImage}
                         winningTeam={matchResultForm.winningTeam}
                         resultText={matchResultForm.resultText}
+                        team1Logo={resolvedTeam1Logo}
+                        team2Logo={resolvedTeam2Logo}
+                        team1Score={matchResultForm.team1Score}
+                        team1Overs={matchResultForm.team1Overs}
+                        team2Score={matchResultForm.team2Score}
+                        team2Overs={matchResultForm.team2Overs}
                         imageOffsetX={imageOffset.x}
                         imageOffsetY={imageOffset.y}
                     />
@@ -1434,6 +1471,8 @@ export default function TemplatesPage() {
                         teamName={playingXIForm.teamName}
                         opponent={playingXIForm.opponent}
                         players={parsePlayingXI(playingXIForm.players)}
+                        team1Logo={resolvedTeam1Logo}
+                        team2Logo={resolvedTeam2Logo}
                         imageOffsetX={imageOffset.x}
                         imageOffsetY={imageOffset.y}
                     />
@@ -1445,7 +1484,8 @@ export default function TemplatesPage() {
                         playerFirstName={milestoneForm.playerFirstName}
                         playerLastName={milestoneForm.playerLastName}
                         milestone={milestoneForm.milestone}
-                        teamLogo={resolvedMilestoneTeamLogo}
+                        team1Logo={resolvedTeam1Logo}
+                        team2Logo={resolvedTeam2Logo}
                         imageOffsetX={imageOffset.x}
                         imageOffsetY={imageOffset.y}
                     />
@@ -1460,6 +1500,17 @@ export default function TemplatesPage() {
                         score={fallOfWicketForm.score}
                         wickets={fallOfWicketForm.wickets}
                         overs={fallOfWicketForm.overs}
+                        imageOffsetX={imageOffset.x}
+                        imageOffsetY={imageOffset.y}
+                    />
+                );
+            case 'player_of_the_match':
+                return (
+                    <PlayerOfTheMatchTemplate
+                        playerImage={playerOfTheMatchLayerImage}
+                        playerName={playerOfTheMatchForm.playerName}
+                        team1Logo={resolvedTeam1Logo}
+                        team2Logo={resolvedTeam2Logo}
                         imageOffsetX={imageOffset.x}
                         imageOffsetY={imageOffset.y}
                     />
@@ -1490,12 +1541,16 @@ export default function TemplatesPage() {
                             <label className={labelClass}>Decision</label>
                             <div className="flex gap-2">
                                 {['bat', 'bowl'].map(d => (
-                                    <button key={d} onClick={() => setTossForm(f => ({ ...f, tossDecision: d }))}
+                                    <button key={d} onClick={() => setTossForm(f => ({ ...f, tossDecision: d, description: `win the toss & elect to ${d} first` }))}
                                         className={`flex-1 px-3 py-1.5 rounded text-sm font-medium transition ${tossForm.tossDecision === d ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300'}`}>
                                         {d.charAt(0).toUpperCase() + d.slice(1)}
                                     </button>
                                 ))}
                             </div>
+                        </div>
+                        <div>
+                            <label className={labelClass}>Description</label>
+                            <input className={inputClass} value={tossForm.description} onChange={e => setTossForm(f => ({ ...f, description: e.target.value }))} />
                         </div>
                     </>
                 );
@@ -1513,7 +1568,7 @@ export default function TemplatesPage() {
                                 if (selectedTeamName && matchDetails?.innings) {
                                     const inningsData = matchDetails.innings.find(
                                         inn => inn.battingTeam?.toUpperCase() === selectedTeamName ||
-                                               inn.battingTeamShort?.toUpperCase() === selectedTeamName
+                                            inn.battingTeamShort?.toUpperCase() === selectedTeamName
                                     );
                                     if (inningsData) {
                                         // Use powerplay data from API
@@ -1583,12 +1638,18 @@ export default function TemplatesPage() {
                                                 setMatchBatsmen(inningsData.batsmen || []);
                                                 setMatchBowlers(inningsData.bowlers || []);
 
+                                                // Calculate chasing team and target for description
+                                                const otherInnings = matchDetails?.innings?.find((_, idx) => idx !== n - 1);
+                                                const chasingName = otherInnings?.battingTeam?.toUpperCase() || '';
+                                                const targetVal = inningsData.target ? Number(inningsData.target) : (Number(inningsData.score) || 0) + 1;
                                                 setInningsEndForm({
                                                     battingTeam: inningsData.battingTeam?.toUpperCase() || '',
                                                     score: Number(inningsData.score) || 0,
                                                     wickets: Number(inningsData.wickets) || 0,
                                                     overs: Number(inningsData.overs) || 0,
                                                     inningsNumber: n,
+                                                    chasingTeam: chasingName,
+                                                    target: targetVal,
                                                     batsman1Name: topBatsmen[0]?.name || '',
                                                     batsman1Runs: Number(topBatsmen[0]?.runs) || 0,
                                                     batsman1Balls: Number(topBatsmen[0]?.balls) || 0,
@@ -1639,133 +1700,23 @@ export default function TemplatesPage() {
                             </div>
                         </div>
 
-                        {/* Bowling Team Dropdown */}
-                        <div>
-                            <label className={labelClass}>Bowling Team</label>
-                            <select
-                                className={inputClass}
-                                value={bowlingTeam}
-                                onChange={e => setBowlingTeam(e.target.value)}
-                            >
-                                <option value="">Select Bowling Team</option>
-                                {teams.map(team => (
-                                    <option key={team.team_id} value={team.name.toUpperCase()}>
-                                        {team.name}
-                                    </option>
-                                ))}
-                            </select>
+                        {/* Description: Chasing Team + Target */}
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className={labelClass}>Chasing Team</label>
+                                <select className={inputClass} value={inningsEndForm.chasingTeam} onChange={e => setInningsEndForm(f => ({ ...f, chasingTeam: e.target.value }))}>
+                                    <option value="">Select Team</option>
+                                    {teams.map(team => (
+                                        <option key={team.team_id} value={team.name.toUpperCase()}>{team.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className={labelClass}>Target</label>
+                                <input type="number" className={inputClass} value={inningsEndForm.target} onChange={e => setInningsEndForm(f => ({ ...f, target: Number(e.target.value) }))} />
+                            </div>
                         </div>
 
-                        <div className="border-t border-gray-600 pt-2 mt-1">
-                            <p className="text-xs text-gray-500 mb-2">Top Batsmen (from {inningsEndForm.battingTeam || 'Batting Team'})</p>
-                            {[1, 2].map(i => {
-                                const key = i as 1 | 2;
-                                const selectedBatsmanName = i === 1 ? inningsEndForm.batsman1Name : inningsEndForm.batsman2Name;
-
-                                return (
-                                    <div key={i} className="mb-2">
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <div className="col-span-3">
-                                                <label className={labelClass}>Batsman {i}</label>
-                                                <select
-                                                    className={inputClass}
-                                                    value={selectedBatsmanName || ''}
-                                                    onChange={e => {
-                                                        const selectedName = e.target.value;
-                                                        const batsman = matchBatsmen.find(b => b.name === selectedName);
-                                                        if (i === 1) {
-                                                            setInningsEndForm(f => ({
-                                                                ...f,
-                                                                batsman1Name: selectedName,
-                                                                batsman1Runs: batsman?.runs || 0,
-                                                                batsman1Balls: batsman?.balls || 0,
-                                                            }));
-                                                        } else {
-                                                            setInningsEndForm(f => ({
-                                                                ...f,
-                                                                batsman2Name: selectedName,
-                                                                batsman2Runs: batsman?.runs || 0,
-                                                                batsman2Balls: batsman?.balls || 0,
-                                                            }));
-                                                        }
-                                                    }}
-                                                >
-                                                    <option value="">Select Player</option>
-                                                    {matchBatsmen.map(batsman => (
-                                                        <option key={batsman.id || batsman.name} value={batsman.name}>
-                                                            {batsman.name} - {batsman.runs}({batsman.balls})
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className={labelClass}>Runs</label>
-                                                <input type="number" className={inputClass} value={inningsEndForm[`batsman${key}Runs`]} onChange={e => setInningsEndForm(f => ({ ...f, [`batsman${key}Runs`]: Number(e.target.value) }))} />
-                                            </div>
-                                            <div>
-                                                <label className={labelClass}>Balls</label>
-                                                <input type="number" className={inputClass} value={inningsEndForm[`batsman${key}Balls`]} onChange={e => setInningsEndForm(f => ({ ...f, [`batsman${key}Balls`]: Number(e.target.value) }))} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="border-t border-gray-600 pt-2 mt-1">
-                            <p className="text-xs text-gray-500 mb-2">Top Bowlers (from {bowlingTeam || 'Bowling Team'})</p>
-                            {[1, 2].map(i => {
-                                const key = i as 1 | 2;
-                                const selectedBowlerName = i === 1 ? inningsEndForm.bowler1Name : inningsEndForm.bowler2Name;
-
-                                return (
-                                    <div key={i} className="mb-2">
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <div className="col-span-3">
-                                                <label className={labelClass}>Bowler {i}</label>
-                                                <select
-                                                    className={inputClass}
-                                                    value={selectedBowlerName || ''}
-                                                    onChange={e => {
-                                                        const selectedName = e.target.value;
-                                                        const bowler = matchBowlers.find(b => b.name === selectedName);
-                                                        if (i === 1) {
-                                                            setInningsEndForm(f => ({
-                                                                ...f,
-                                                                bowler1Name: selectedName,
-                                                                bowler1Wickets: bowler?.wickets || 0,
-                                                                bowler1Runs: bowler?.runs || 0,
-                                                            }));
-                                                        } else {
-                                                            setInningsEndForm(f => ({
-                                                                ...f,
-                                                                bowler2Name: selectedName,
-                                                                bowler2Wickets: bowler?.wickets || 0,
-                                                                bowler2Runs: bowler?.runs || 0,
-                                                            }));
-                                                        }
-                                                    }}
-                                                >
-                                                    <option value="">Select Player</option>
-                                                    {matchBowlers.map(bowler => (
-                                                        <option key={bowler.id || bowler.name} value={bowler.name}>
-                                                            {bowler.name} - {bowler.wickets}/{bowler.runs} ({bowler.overs} ov)
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className={labelClass}>Wkts</label>
-                                                <input type="number" className={inputClass} value={inningsEndForm[`bowler${key}Wickets`]} onChange={e => setInningsEndForm(f => ({ ...f, [`bowler${key}Wickets`]: Number(e.target.value) }))} />
-                                            </div>
-                                            <div>
-                                                <label className={labelClass}>Runs</label>
-                                                <input type="number" className={inputClass} value={inningsEndForm[`bowler${key}Runs`]} onChange={e => setInningsEndForm(f => ({ ...f, [`bowler${key}Runs`]: Number(e.target.value) }))} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
                     </>
                 );
             case 'target':
@@ -1783,7 +1734,7 @@ export default function TemplatesPage() {
                                     // Find the innings where selected team is batting (chasing)
                                     const chasingInnings = matchDetails.innings.find(
                                         inn => inn.battingTeam?.toUpperCase() === selectedTeamName ||
-                                               inn.battingTeamShort?.toUpperCase() === selectedTeamName
+                                            inn.battingTeamShort?.toUpperCase() === selectedTeamName
                                     );
                                     // If chasing team's innings exists and has target, use it
                                     if (chasingInnings?.target) {
@@ -1792,7 +1743,7 @@ export default function TemplatesPage() {
                                         // Find the other innings (first innings) and calculate target
                                         const firstInnings = matchDetails.innings.find(
                                             inn => (inn.battingTeam?.toUpperCase() !== selectedTeamName &&
-                                                   inn.battingTeamShort?.toUpperCase() !== selectedTeamName)
+                                                inn.battingTeamShort?.toUpperCase() !== selectedTeamName)
                                         );
                                         if (firstInnings) {
                                             setTargetForm(f => ({ ...f, target: (Number(firstInnings.score) || 0) + 1 }));
@@ -1831,6 +1782,26 @@ export default function TemplatesPage() {
                             <label className={labelClass}>Result Text</label>
                             <input className={inputClass} value={matchResultForm.resultText} onChange={e => setMatchResultForm(f => ({ ...f, resultText: e.target.value }))} placeholder="e.g. won by 106 runs" />
                         </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className={labelClass}>Team 1 Score</label>
+                                <input className={inputClass} value={matchResultForm.team1Score} onChange={e => setMatchResultForm(f => ({ ...f, team1Score: e.target.value }))} placeholder="e.g. 213/4" />
+                            </div>
+                            <div>
+                                <label className={labelClass}>Team 1 Overs</label>
+                                <input className={inputClass} value={matchResultForm.team1Overs} onChange={e => setMatchResultForm(f => ({ ...f, team1Overs: e.target.value }))} placeholder="e.g. 20" />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className={labelClass}>Team 2 Score</label>
+                                <input className={inputClass} value={matchResultForm.team2Score} onChange={e => setMatchResultForm(f => ({ ...f, team2Score: e.target.value }))} placeholder="e.g. 147/10" />
+                            </div>
+                            <div>
+                                <label className={labelClass}>Team 2 Overs</label>
+                                <input className={inputClass} value={matchResultForm.team2Overs} onChange={e => setMatchResultForm(f => ({ ...f, team2Overs: e.target.value }))} placeholder="e.g. 18.3" />
+                            </div>
+                        </div>
                     </>
                 );
             case 'playing_xi':
@@ -1848,9 +1819,9 @@ export default function TemplatesPage() {
                                     if (selectedTeamName && matchDetails) {
                                         // Check if selected team matches team1 or team2 from match data
                                         const isTeam1 = matchDetails.team1?.name?.toUpperCase() === selectedTeamName ||
-                                                        matchDetails.team1?.shortName?.toUpperCase() === selectedTeamName;
+                                            matchDetails.team1?.shortName?.toUpperCase() === selectedTeamName;
                                         const isTeam2 = matchDetails.team2?.name?.toUpperCase() === selectedTeamName ||
-                                                        matchDetails.team2?.shortName?.toUpperCase() === selectedTeamName;
+                                            matchDetails.team2?.shortName?.toUpperCase() === selectedTeamName;
 
                                         if (isTeam1 && matchDetails.team1?.players?.length > 0) {
                                             // Use playing XI from match data
@@ -2014,7 +1985,7 @@ export default function TemplatesPage() {
                                 if (selectedTeamName && matchDetails?.innings) {
                                     const inningsData = matchDetails.innings.find(
                                         inn => inn.battingTeam?.toUpperCase() === selectedTeamName ||
-                                               inn.battingTeamShort?.toUpperCase() === selectedTeamName
+                                            inn.battingTeamShort?.toUpperCase() === selectedTeamName
                                     );
                                     if (inningsData) {
                                         setFallOfWicketForm(f => ({
@@ -2045,6 +2016,37 @@ export default function TemplatesPage() {
                                 <label className={labelClass}>Overs</label>
                                 <input type="number" step={0.1} className={inputClass} value={fallOfWicketForm.overs} onChange={e => setFallOfWicketForm(f => ({ ...f, overs: Number(e.target.value) }))} />
                             </div>
+                        </div>
+                    </>
+                );
+            case 'player_of_the_match':
+                const potmPlayers = playerOfTheMatchForm.playerTeamId
+                    ? players.filter(p => p.team_id === playerOfTheMatchForm.playerTeamId)
+                    : [];
+                return (
+                    <>
+                        <div>
+                            <label className={labelClass}>Team</label>
+                            <select className={inputClass} value={playerOfTheMatchForm.playerTeamId ?? ''} onChange={e => {
+                                const teamId = e.target.value ? parseInt(e.target.value) : null;
+                                setPlayerOfTheMatchForm(f => ({ ...f, playerTeamId: teamId, playerName: '' }));
+                            }}>
+                                <option value="">Select Team</option>
+                                {teams.map(team => (
+                                    <option key={team.team_id} value={team.team_id}>{team.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className={labelClass}>Player</label>
+                            <select className={inputClass} value={playerOfTheMatchForm.playerName} onChange={e => {
+                                setPlayerOfTheMatchForm(f => ({ ...f, playerName: e.target.value }));
+                            }}>
+                                <option value="">Select Player</option>
+                                {potmPlayers.map(p => (
+                                    <option key={p.player_id} value={p.name}>{p.name}</option>
+                                ))}
+                            </select>
                         </div>
                     </>
                 );
@@ -2085,7 +2087,7 @@ export default function TemplatesPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white p-6">
+        <div className="min-h-screen bg-gray-900 text-white p-6 overflow-x-hidden">
             {/* Header with Match Info and Actions */}
             <div className="flex items-center justify-between mb-6">
                 <button
@@ -2157,6 +2159,7 @@ export default function TemplatesPage() {
                             {selectedTemplate === 'playing_xi' && 'Playing XI Template Image (Recommended: 2107×1353px)'}
                             {selectedTemplate === 'milestone' && 'Milestone Template Image (Recommended: 2048×1405px)'}
                             {selectedTemplate === 'fall_of_wicket' && 'Fall of Wicket Template Image (Recommended: 1992×1371px)'}
+                            {selectedTemplate === 'player_of_the_match' && 'Player of the Match Image (Recommended: 2023×1350px)'}
                         </p>
                         <div>
                             <label className={labelClass}>Upload Image (PNG, JPG, JPEG, WebP, GIF)</label>
@@ -2178,6 +2181,7 @@ export default function TemplatesPage() {
                                         else if (selectedTemplate === 'playing_xi') setPlayingXILayerImage(dataUrl);
                                         else if (selectedTemplate === 'milestone') setMilestoneLayerImage(dataUrl);
                                         else if (selectedTemplate === 'fall_of_wicket') setFallOfWicketLayerImage(dataUrl);
+                                        else if (selectedTemplate === 'player_of_the_match') setPlayerOfTheMatchLayerImage(dataUrl);
                                     }
                                 }}
                             />
@@ -2190,7 +2194,8 @@ export default function TemplatesPage() {
                                                     selectedTemplate === 'match_result' ? matchResultLayerImage :
                                                         selectedTemplate === 'playing_xi' ? playingXILayerImage :
                                                             selectedTemplate === 'milestone' ? milestoneLayerImage :
-                                                                selectedTemplate === 'fall_of_wicket' ? fallOfWicketLayerImage : '';
+                                                                selectedTemplate === 'fall_of_wicket' ? fallOfWicketLayerImage :
+                                                                    selectedTemplate === 'player_of_the_match' ? playerOfTheMatchLayerImage : '';
                                 return currentImage ? (
                                     <div className="mt-2">
                                         <div className="flex items-center gap-2">
@@ -2312,7 +2317,7 @@ export default function TemplatesPage() {
                     </div>
 
                     {/* Custom Logo URLs - only for templates that show logos */}
-                    {['powerplay', 'innings_end', 'target', 'fall_of_wicket'].includes(selectedTemplate) && (
+                    {['powerplay', 'innings_end', 'target', 'fall_of_wicket', 'player_of_the_match', 'playing_xi', 'match_result'].includes(selectedTemplate) && (
                         <div className="border-b border-gray-600 pb-3 mb-3">
                             <p className="text-xs text-gray-500 mb-2">Team Logo Images (VS Section)</p>
                             <div className="space-y-3">

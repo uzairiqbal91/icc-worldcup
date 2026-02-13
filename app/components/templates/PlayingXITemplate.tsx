@@ -10,20 +10,13 @@ interface Player {
 }
 
 interface PlayingXITemplateProps {
-    /**
-     * DYNAMIC: The main playing XI image - changes per match
-     * Recommended size: 2107×1353px (landscape)
-     */
     playingXIImage?: string;
-    /** Team name (dynamic) */
     teamName: string;
-    /** Opponent name (dynamic) */
     opponent: string;
-    /** List of 11 players (dynamic) */
     players: Player[];
-    /** Image position offset X (for drag/drop repositioning) */
+    team1Logo?: string;
+    team2Logo?: string;
     imageOffsetX?: number;
-    /** Image position offset Y (for drag/drop repositioning) */
     imageOffsetY?: number;
 }
 
@@ -32,6 +25,8 @@ export default function PlayingXITemplate({
     teamName,
     opponent,
     players,
+    team1Logo,
+    team2Logo,
     imageOffsetX = 0,
     imageOffsetY = 0,
 }: PlayingXITemplateProps) {
@@ -43,53 +38,34 @@ export default function PlayingXITemplate({
             imageOffsetY={imageOffsetY}
             templateLayer2="/assets/templates/playing-xi-layer2.png"
             templateLayer2Style={{ left: 0, top: 0, width: 1316, height: 1352 }}
-            // templateLayer3="/assets/templates/playing-xi-layer14.png"
-            templateLayer3Style={{ left: 511, top: 105, width: 569, height: 1180 }}
-            showVsSection={false}
-            mycoVariant="color-white"
+            showRightBolt={false}
         >
-            {/* Playing XI Title */}
+            {/* PLAYING XI Title */}
             <p
                 className="absolute uppercase"
                 style={{
-                    left: 31.52, top: 263.86,
+                    left: 50.54, top: 213.91,
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 700,
-                    fontSize: 80,
-                    lineHeight: '80px',
+                    fontSize: 72,
+                    lineHeight: '72px',
                     color: '#ffffff',
-                    letterSpacing: -0.63,
+                    letterSpacing: -1.8,
                 }}
             >
-                Playing XI
-            </p>
-
-            {/* VS Opponent */}
-            <p
-                className="absolute uppercase"
-                style={{
-                    left: 35.45, top: 341.87,
-                    fontFamily: "'Inter', sans-serif",
-                    fontWeight: 400,
-                    fontSize: 30,
-                    lineHeight: '30px',
-                    color: '#ffdc29',
-                    letterSpacing: 0.76,
-                }}
-            >
-                vs {opponent}
+                playing xi
             </p>
 
             {/* Player List */}
             <div
                 className="absolute uppercase"
                 style={{
-                    left: 38.99, top: 394.57,
+                    left: 52.14, top: 318.57,
                     fontFamily: "'Inter', sans-serif",
                     fontSize: 30,
-                    lineHeight: '60px',
+                    lineHeight: '42px',
                     color: '#ffffff',
-                    letterSpacing: -0.13,
+                    letterSpacing: 0.59,
                     whiteSpace: 'nowrap',
                 }}
             >
@@ -98,7 +74,7 @@ export default function PlayingXITemplate({
                     const firstName = parts[0];
                     const lastName = parts.slice(1).join(' ') || '';
                     let suffix = '';
-                    if (player.isCaptain && player.isWicketkeeper) suffix = '  (C & WK)';
+                    if (player.isCaptain && player.isWicketkeeper) suffix = '  (C)  (WK)';
                     else if (player.isCaptain) suffix = '  (C)';
                     else if (player.isWicketkeeper) suffix = '  (WK)';
 
@@ -106,11 +82,37 @@ export default function PlayingXITemplate({
                         <p key={i} style={{ margin: 0 }}>
                             <span style={{ fontWeight: 400 }}>{firstName} </span>
                             <span style={{ fontWeight: 700 }}>{lastName}</span>
-                            {suffix && <span style={{ fontWeight: 700, color: '#ffdc29' }}>{suffix}</span>}
+                            {suffix && <span style={{ fontWeight: 400 }}>{suffix}</span>}
                         </p>
                     );
                 })}
             </div>
+
+            {/* VS Section with team logos */}
+            {team1Logo && team2Logo && (
+                <div className="absolute" style={{ left: 0, top: 0 }}>
+                    <div className="absolute" style={{ left: 54, top: 893, width: 114, height: 58 }}>
+                        <img src={team1Logo} alt="Team 1" className="absolute inset-0 w-full h-full object-contain" />
+                    </div>
+                    <p
+                        className="absolute uppercase"
+                        style={{
+                            left: 183.65, top: 901.63,
+                            fontFamily: "'Inter', sans-serif",
+                            fontWeight: 400,
+                            fontSize: 39.23,
+                            lineHeight: '39.23px',
+                            color: '#ff9100',
+                            letterSpacing: 19.62,
+                        }}
+                    >
+                        v
+                    </p>
+                    <div className="absolute" style={{ left: 228, top: 894, width: 115, height: 57 }}>
+                        <img src={team2Logo} alt="Team 2" className="absolute inset-0 w-full h-full object-contain" />
+                    </div>
+                </div>
+            )}
         </BaseTemplate>
     );
 }

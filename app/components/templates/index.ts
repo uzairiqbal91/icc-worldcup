@@ -7,3 +7,4 @@ export { default as MatchResultTemplate } from './MatchResultTemplate';
 export { default as PlayingXITemplate } from './PlayingXITemplate';
 export { default as MilestoneTemplate } from './MilestoneTemplate';
 export { default as FallOfWicketTemplate } from './FallOfWicketTemplate';
+export { default as PlayerOfTheMatchTemplate } from './PlayerOfTheMatchTemplate';

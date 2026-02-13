@@ -3,64 +3,65 @@
 import React from 'react';
 import BaseTemplate from './BaseTemplate';
 
-interface FallOfWicketTemplateProps {
-    fallOfWicketImage?: string;
+interface PlayerOfTheMatchTemplateProps {
+    /** DYNAMIC: Player image */
+    playerImage?: string;
+    /** Player name (dynamic) */
+    playerName: string;
+    /** Team 1 logo (dynamic) */
     team1Logo?: string;
+    /** Team 2 logo (dynamic) */
     team2Logo?: string;
-    battingTeam: string;
-    score: number;
-    wickets: number;
-    overs: number;
+    /** Image position offset X (for drag/drop repositioning) */
     imageOffsetX?: number;
+    /** Image position offset Y (for drag/drop repositioning) */
     imageOffsetY?: number;
 }
 
-export default function FallOfWicketTemplate({
-    fallOfWicketImage,
+export default function PlayerOfTheMatchTemplate({
+    playerImage,
+    playerName,
     team1Logo,
     team2Logo,
-    battingTeam,
-    score,
-    wickets,
-    overs,
     imageOffsetX = 0,
     imageOffsetY = 0,
-}: FallOfWicketTemplateProps) {
+}: PlayerOfTheMatchTemplateProps) {
     return (
         <BaseTemplate
-            templateLayer={fallOfWicketImage}
-            templateLayerStyle={{ left: -2, top: -2, width: 1082, height: 1623 }}
+            templateLayer={playerImage}
+            templateLayerStyle={{ left: -471, top: 0, width: 2023, height: 1350 }}
             imageOffsetX={imageOffsetX}
             imageOffsetY={imageOffsetY}
         >
-            {/* FALL OF WICKET Title */}
-            <p
-                className="absolute uppercase"
+            {/* PLAYER OF THE MATCH Title */}
+            <div
+                className="absolute text-center uppercase"
                 style={{
-                    left: '50%', top: 861.72,
+                    left: '50%', top: 846.72,
                     transform: 'translateX(-50%)',
                     whiteSpace: 'nowrap',
                     fontFamily: "'Inter', sans-serif",
                     fontWeight: 700,
                     fontSize: 100,
-                    lineHeight: '100px',
+                    lineHeight: '90px',
                     color: '#ffffff',
-                    letterSpacing: 1.37,
+                    letterSpacing: -0.59,
                 }}
             >
-                fall of wicket
-            </p>
+                <p style={{ margin: 0 }}>player of</p>
+                <p style={{ margin: 0 }}>the match</p>
+            </div>
 
             {/* VS Section with team logos */}
             {team1Logo && team2Logo && (
                 <div className="absolute" style={{ left: 0, top: 0 }}>
-                    <div className="absolute" style={{ left: 428, top: 991, width: 88, height: 45 }}>
+                    <div className="absolute" style={{ left: 431, top: 1061, width: 90, height: 44 }}>
                         <img src={team1Logo} alt="Team 1" className="absolute inset-0 w-full h-full object-contain" />
                     </div>
                     <p
                         className="absolute uppercase"
                         style={{
-                            left: 528.15, top: 997.42,
+                            left: 533, top: 1068,
                             fontFamily: "'Inter', sans-serif",
                             fontWeight: 400,
                             fontSize: 30,
@@ -71,32 +72,32 @@ export default function FallOfWicketTemplate({
                     >
                         v
                     </p>
-                    <div className="absolute" style={{ left: 563, top: 992, width: 87, height: 43 }}>
+                    <div className="absolute" style={{ left: 570, top: 1061, width: 90, height: 44 }}>
                         <img src={team2Logo} alt="Team 2" className="absolute inset-0 w-full h-full object-contain" />
                     </div>
                 </div>
             )}
 
-            {/* Team Name and Score */}
-            <div
-                className="absolute text-center uppercase"
+            {/* Orange line divider */}
+            <div className="absolute" style={{ left: 252, top: 1128.5, width: 576, height: 2, backgroundColor: '#ff9100' }} />
+
+            {/* Player name */}
+            <p
+                className="absolute uppercase"
                 style={{
-                    left: '50%', top: 1072.7,
+                    left: '50%', top: 1154.25,
                     transform: 'translateX(-50%)',
                     whiteSpace: 'nowrap',
                     fontFamily: "'Inter', sans-serif",
-                    fontSize: 40,
-                    color: '#ffffff',
+                    fontWeight: 500,
+                    fontSize: 30,
+                    lineHeight: '30px',
+                    color: '#ffe900',
+                    letterSpacing: 1.41,
                 }}
             >
-                <p style={{ margin: 0, lineHeight: '45px' }}>
-                    <span style={{ fontWeight: 700 }}>{battingTeam}</span>
-                    <span style={{ fontWeight: 500 }}> {score}/{wickets}</span>
-                </p>
-                <p style={{ margin: 0, fontWeight: 500, lineHeight: '45px' }}>
-                    {overs} Overs
-                </p>
-            </div>
+                {playerName}
+            </p>
         </BaseTemplate>
     );
 }
