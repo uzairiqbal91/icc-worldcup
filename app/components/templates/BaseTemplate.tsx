@@ -111,8 +111,8 @@ export default function BaseTemplate({
             )}
 
             {/* Myco X Geo Super logo - Top Left */}
-            <div className="absolute" style={{ left: 55, top: 52, width: 288, height: 87 }}>
-                <img src="/assets/templates/myco-geo-super.png" alt="MYCO" className="absolute inset-0 w-full h-full object-contain" />
+            <div className="absolute" style={{ left: 10, top: 52, width: 288, height: 87 }}>
+                <img src="/assets/templates/myco-color-white.png" alt="MYCO" className="absolute inset-0 w-full h-full object-contain" />
             </div>
 
             {/* ICC T20 World Cup logo - Top Right */}
