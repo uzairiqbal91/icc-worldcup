@@ -538,13 +538,29 @@ export default function TemplatesPage() {
         if (dbTeam1) {
             setSelectedTeam1(dbTeam1.team_id);
             setTeam1Selection(dbTeam1.team_id);
-            await fetchAndAutoSelectLogo(dbTeam1.team_id, setTeam1LogoUrl, setIsTeam1LogoFromGallery);
         }
         if (dbTeam2) {
             setSelectedTeam2(dbTeam2.team_id);
             setTeam2Selection(dbTeam2.team_id);
-            await fetchAndAutoSelectLogo(dbTeam2.team_id, setTeam2LogoUrl, setIsTeam2LogoFromGallery);
         }
+
+        // Fetch logos and template images in parallel for speed
+        const logoAndImagePromises: Promise<void>[] = [];
+        if (dbTeam1) {
+            logoAndImagePromises.push(fetchAndAutoSelectLogo(dbTeam1.team_id, setTeam1LogoUrl, setIsTeam1LogoFromGallery));
+            logoAndImagePromises.push(fetchAndAutoSelectImage(dbTeam1.team_id, 'toss', setTossLayerImage));
+            logoAndImagePromises.push(fetchAndAutoSelectImage(dbTeam1.team_id, 'playing_xi', setPlayingXILayerImage));
+            logoAndImagePromises.push(fetchAndAutoSelectImage(dbTeam1.team_id, 'powerplay', setPowerplayLayerImage));
+            logoAndImagePromises.push(fetchAndAutoSelectImage(dbTeam1.team_id, 'innings_end', setInningsEndLayerImage));
+            logoAndImagePromises.push(fetchAndAutoSelectImage(dbTeam1.team_id, 'fall_of_wicket', setFallOfWicketLayerImage));
+            logoAndImagePromises.push(fetchAndAutoSelectImage(dbTeam1.team_id, 'match_result', setMatchResultLayerImage));
+            logoAndImagePromises.push(fetchAndAutoSelectImage(dbTeam1.team_id, 'milestone', setMilestoneLayerImage));
+        }
+        if (dbTeam2) {
+            logoAndImagePromises.push(fetchAndAutoSelectLogo(dbTeam2.team_id, setTeam2LogoUrl, setIsTeam2LogoFromGallery));
+            logoAndImagePromises.push(fetchAndAutoSelectImage(dbTeam2.team_id, 'target', setTargetLayerImage));
+        }
+        await Promise.all(logoAndImagePromises);
 
         // Fallback to API logos
         if (!team1LogoUrl && match.team1.imageUrl) setTeam1LogoUrl(match.team1.imageUrl);
@@ -588,20 +604,6 @@ export default function TemplatesPage() {
         if (dbTeam1) {
             setMilestoneTeamId(dbTeam1.team_id);
         }
-
-        // Fetch template images if teams found
-        if (dbTeam1) {
-            await fetchAndAutoSelectImage(dbTeam1.team_id, 'toss', setTossLayerImage);
-            await fetchAndAutoSelectImage(dbTeam1.team_id, 'playing_xi', setPlayingXILayerImage);
-            await fetchAndAutoSelectImage(dbTeam1.team_id, 'powerplay', setPowerplayLayerImage);
-            await fetchAndAutoSelectImage(dbTeam1.team_id, 'innings_end', setInningsEndLayerImage);
-            await fetchAndAutoSelectImage(dbTeam1.team_id, 'fall_of_wicket', setFallOfWicketLayerImage);
-            await fetchAndAutoSelectImage(dbTeam1.team_id, 'match_result', setMatchResultLayerImage);
-            await fetchAndAutoSelectImage(dbTeam1.team_id, 'milestone', setMilestoneLayerImage);
-        }
-        if (dbTeam2) {
-            await fetchAndAutoSelectImage(dbTeam2.team_id, 'target', setTargetLayerImage);
-        }
     };
 
     // Auto-fill form data from live match
@@ -614,23 +616,26 @@ export default function TemplatesPage() {
         if (dbTeam1) {
             setSelectedTeam1(dbTeam1.team_id);
             setTeam1Selection(dbTeam1.team_id);
-            // Fetch and auto-select logo
-            await fetchAndAutoSelectLogo(dbTeam1.team_id, setTeam1LogoUrl, setIsTeam1LogoFromGallery);
         }
         if (dbTeam2) {
             setSelectedTeam2(dbTeam2.team_id);
             setTeam2Selection(dbTeam2.team_id);
-            // Fetch and auto-select logo
-            await fetchAndAutoSelectLogo(dbTeam2.team_id, setTeam2LogoUrl, setIsTeam2LogoFromGallery);
         }
-
-        // Fallback to API logos if no saved logos
-        if (!team1LogoUrl && match.team1.imageUrl) setTeam1LogoUrl(match.team1.imageUrl);
-        if (!team2LogoUrl && match.team2.imageUrl) setTeam2LogoUrl(match.team2.imageUrl);
 
         // Use database team names for dropdowns (they need to match exactly)
         const team1Name = dbTeam1?.name?.toUpperCase() || data.team1?.name?.toUpperCase() || match.team1.name?.toUpperCase() || '';
         const team2Name = dbTeam2?.name?.toUpperCase() || data.team2?.name?.toUpperCase() || match.team2.name?.toUpperCase() || '';
+
+        // Collect all image fetch promises to run in parallel
+        const imagePromises: Promise<void>[] = [];
+
+        // Fetch logos in parallel
+        if (dbTeam1) {
+            imagePromises.push(fetchAndAutoSelectLogo(dbTeam1.team_id, setTeam1LogoUrl, setIsTeam1LogoFromGallery));
+        }
+        if (dbTeam2) {
+            imagePromises.push(fetchAndAutoSelectLogo(dbTeam2.team_id, setTeam2LogoUrl, setIsTeam2LogoFromGallery));
+        }
 
         // Auto-fill toss
         if (data.toss) {
@@ -638,10 +643,10 @@ export default function TemplatesPage() {
                 tossWinner: data.toss.winner?.toUpperCase() || team1Name,
                 tossDecision: data.toss.decision || 'bat',
             });
-            // Auto-select toss template image
+            // Auto-select toss template image (in parallel)
             const tossWinnerTeam = findTeamByName(data.toss.winner || '');
             if (tossWinnerTeam) {
-                await fetchAndAutoSelectImage(tossWinnerTeam.team_id, 'toss', setTossLayerImage);
+                imagePromises.push(fetchAndAutoSelectImage(tossWinnerTeam.team_id, 'toss', setTossLayerImage));
             }
         } else {
             setTossForm({ tossWinner: team1Name, tossDecision: 'bat' });
@@ -680,9 +685,9 @@ export default function TemplatesPage() {
             players: playersText,
         });
 
-        // Auto-select playing XI image
+        // Auto-select playing XI image (in parallel)
         if (dbTeam1) {
-            await fetchAndAutoSelectImage(dbTeam1.team_id, 'playing_xi', setPlayingXILayerImage);
+            imagePromises.push(fetchAndAutoSelectImage(dbTeam1.team_id, 'playing_xi', setPlayingXILayerImage));
         }
 
         // Auto-fill from innings data
@@ -708,10 +713,10 @@ export default function TemplatesPage() {
                     wickets: ppWickets,
                     overs: ppOvers,
                 });
-                // Auto-select powerplay image for current batting team
+                // Auto-select powerplay image for current batting team (in parallel)
                 const ppTeam = findTeamByName(powerplayInnings.battingTeam || '');
                 if (ppTeam) {
-                    await fetchAndAutoSelectImage(ppTeam.team_id, 'powerplay', setPowerplayLayerImage);
+                    imagePromises.push(fetchAndAutoSelectImage(ppTeam.team_id, 'powerplay', setPowerplayLayerImage));
                 }
             }
 
@@ -809,10 +814,10 @@ export default function TemplatesPage() {
                     if (bowl2) setSelectedBowler2(bowl2.player_id);
                 }
 
-                // Auto-select innings end image
+                // Auto-select innings end image (in parallel)
                 const ieTeam = findTeamByName(firstInnings.battingTeam || '');
                 if (ieTeam) {
-                    await fetchAndAutoSelectImage(ieTeam.team_id, 'innings_end', setInningsEndLayerImage);
+                    imagePromises.push(fetchAndAutoSelectImage(ieTeam.team_id, 'innings_end', setInningsEndLayerImage));
                 }
 
                 // Target - use live score for more accurate target
@@ -829,10 +834,10 @@ export default function TemplatesPage() {
                     overs: Number(firstInnings?.overs) || 20,
                 }));
 
-                // Auto-select target image
+                // Auto-select target image (in parallel)
                 const targetTeam = findTeamByName(secondInnings?.battingTeam || data.team2?.name || '');
                 if (targetTeam) {
-                    await fetchAndAutoSelectImage(targetTeam.team_id, 'target', setTargetLayerImage);
+                    imagePromises.push(fetchAndAutoSelectImage(targetTeam.team_id, 'target', setTargetLayerImage));
                 }
             }
 
@@ -844,10 +849,10 @@ export default function TemplatesPage() {
                     wickets: Number(currentInnings.wickets) || 0,
                     overs: Number(currentInnings.overs) || 0,
                 });
-                // Auto-select fall of wicket image
+                // Auto-select fall of wicket image (in parallel)
                 const fowTeam = findTeamByName(currentInnings.battingTeam || '');
                 if (fowTeam) {
-                    await fetchAndAutoSelectImage(fowTeam.team_id, 'fall_of_wicket', setFallOfWicketLayerImage);
+                    imagePromises.push(fetchAndAutoSelectImage(fowTeam.team_id, 'fall_of_wicket', setFallOfWicketLayerImage));
                 }
             }
 
@@ -893,7 +898,7 @@ export default function TemplatesPage() {
                 const milestoneTeam = findTeamByName(highestMilestone.teamName);
                 if (milestoneTeam) {
                     setMilestoneTeamId(milestoneTeam.team_id);
-                    await fetchAndAutoSelectImage(milestoneTeam.team_id, 'milestone', setMilestoneLayerImage);
+                    imagePromises.push(fetchAndAutoSelectImage(milestoneTeam.team_id, 'milestone', setMilestoneLayerImage));
                 }
             } else {
                 setMilestoneForm({ playerFirstName: '', playerLastName: '', milestone: 50 });
@@ -944,10 +949,10 @@ export default function TemplatesPage() {
                     team1Score: t1Score, team1Overs: t1Overs,
                     team2Score: t2Score, team2Overs: t2Overs,
                 });
-                // Auto-select match result image
+                // Auto-select match result image (in parallel)
                 const winnerTeam = findTeamByName(resultParts[0]?.trim() || '');
                 if (winnerTeam) {
-                    await fetchAndAutoSelectImage(winnerTeam.team_id, 'match_result', setMatchResultLayerImage);
+                    imagePromises.push(fetchAndAutoSelectImage(winnerTeam.team_id, 'match_result', setMatchResultLayerImage));
                 }
             } else if (resultText) {
                 // Result exists but in a different format (e.g., "Match tied", "Match drawn")
@@ -958,6 +963,13 @@ export default function TemplatesPage() {
         } else {
             setMatchResultForm({ winningTeam: team1Name, resultText: '', team1Score: t1Score, team1Overs: t1Overs, team2Score: t2Score, team2Overs: t2Overs });
         }
+
+        // Wait for all image fetches to complete in parallel
+        await Promise.all(imagePromises);
+
+        // Fallback to API logos if no saved logos
+        if (!team1LogoUrl && match.team1.imageUrl) setTeam1LogoUrl(match.team1.imageUrl);
+        if (!team2LogoUrl && match.team2.imageUrl) setTeam2LogoUrl(match.team2.imageUrl);
     };
 
     // Go back to match list
@@ -1000,12 +1012,28 @@ export default function TemplatesPage() {
             ? resolvedTeam2Logo
             : milestoneTeam?.image_url);
 
+    // Convert an image URL to a data URL to avoid CORS issues during download
+    const toDataUrl = async (url: string): Promise<string> => {
+        if (!url || url.startsWith('data:')) return url;
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = () => resolve(url); // fallback to original
+                reader.readAsDataURL(blob);
+            });
+        } catch {
+            return url; // fallback to original URL on error
+        }
+    };
+
     const downloadPoster = async () => {
         if (!posterRef.current) return;
+        let container: HTMLDivElement | null = null;
         try {
-            const domtoimage = (await import('dom-to-image')).default;
-
-            const container = document.createElement('div');
+            container = document.createElement('div');
             Object.assign(container.style, {
                 position: 'fixed',
                 left: '-9999px',
@@ -1028,30 +1056,86 @@ export default function TemplatesPage() {
             });
             container.appendChild(clone);
 
+            // Convert all external images to data URLs to avoid CORS issues
             const images = Array.from(clone.getElementsByTagName('img'));
-            await Promise.all(images.map(img => {
-                if (img.complete) return Promise.resolve();
-                return new Promise(resolve => {
-                    img.onload = resolve;
-                    img.onerror = resolve;
-                });
+            await Promise.all(images.map(async (img) => {
+                const src = img.src;
+                if (src && !src.startsWith('data:')) {
+                    try {
+                        const dataUrl = await toDataUrl(src);
+                        img.src = dataUrl;
+                    } catch {
+                        // Keep original src if conversion fails
+                    }
+                }
+                // Wait for image to load after src change
+                if (!img.complete) {
+                    await new Promise<void>(resolve => {
+                        img.onload = () => resolve();
+                        img.onerror = () => resolve();
+                    });
+                }
             }));
 
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 300));
 
-            const dataUrl = await domtoimage.toPng(clone, {
-                width: 1080,
-                height: 1350
-            });
+            // Try dom-to-image first, then fallback to html2canvas
+            let dataUrl: string | null = null;
+            const maxRetries = 2;
 
-            document.body.removeChild(container);
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const domtoimage = (await import('dom-to-image')).default;
+                    dataUrl = await domtoimage.toPng(clone, {
+                        width: 1080,
+                        height: 1350,
+                        cacheBust: true,
+                    });
+                    if (dataUrl && dataUrl !== 'data:,') break;
+                } catch (err) {
+                    console.warn(`dom-to-image attempt ${attempt + 1} failed:`, err);
+                    if (attempt < maxRetries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+            }
 
-            const link = document.createElement('a');
-            link.download = `${selectedTemplate}-poster.png`;
-            link.href = dataUrl;
-            link.click();
+            // Fallback to html2canvas if dom-to-image failed
+            if (!dataUrl || dataUrl === 'data:,') {
+                try {
+                    const html2canvas = (await import('html2canvas')).default;
+                    const canvas = await html2canvas(clone, {
+                        width: 1080,
+                        height: 1350,
+                        scale: 1,
+                        useCORS: true,
+                        allowTaint: true,
+                        logging: false,
+                    });
+                    dataUrl = canvas.toDataURL('image/png');
+                } catch (err) {
+                    console.error('html2canvas fallback also failed:', err);
+                }
+            }
+
+            if (container) document.body.removeChild(container);
+            container = null;
+
+            if (dataUrl && dataUrl !== 'data:,') {
+                const link = document.createElement('a');
+                link.download = `${selectedTemplate}-poster.png`;
+                link.href = dataUrl;
+                link.click();
+            } else {
+                console.error('Failed to generate image after all attempts');
+                alert('Download failed. Please try again.');
+            }
         } catch (error) {
             console.error('Error generating image:', error);
+            alert('Download failed. Please try again.');
+            if (container && container.parentNode) {
+                document.body.removeChild(container);
+            }
         }
     };
 
